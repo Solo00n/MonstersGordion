@@ -43,6 +43,15 @@ internal sealed class PluginConfig
     // [Integration]
     public readonly ConfigEntry<int> ToilHeadSpawnChance;
     public readonly ConfigEntry<int> ToilSlayerChance;
+    public readonly ConfigEntry<int> VainShroudIterations;
+
+    /// <summary>Iterations to actually use, resolving the "0 = automatic" default.</summary>
+    public int ResolveVainShroudIterations()
+    {
+        if (VainShroudIterations.Value > 0)
+            return VainShroudIterations.Value;
+        return ForName("Bush Wolf").Enabled.Value ? 12 : 0;
+    }
 
     // [Advanced]
     public readonly ConfigEntry<bool> DespawnOnShipLeave;
@@ -85,6 +94,13 @@ internal sealed class PluginConfig
             ["Clay Surgeon"]       = (true,  6, 0, 2), // Barber
             ["Maneater"]           = (true,  4, 0, 1),
             ["CaveDweller"]        = (true,  4, 0, 1), // Maneater internal name in some builds
+            ["Stingray"]           = (true,  8, 0, 2), // v81, hides on ceilings
+            ["Feiopar"]            = (true,  6, 0, 1), // v81 PumaAI — stalks, normally from trees
+            // v81 Cadaver pair: the Growth is the map-wide master that plants and
+            // wakes the Blooms, so it is the one worth enabling. A Bloom spawned on
+            // its own stays a dormant, invisible seed (see EnemyCatalog notes).
+            ["Cadaver Growths"]    = (true,  4, 0, 1),
+            ["Cadaver Bloom"]      = (false, 4, 0, 2),
             // Docile daytime critters.
             // Manticoil is disabled by default: it behaves erratically on the
             // Company moon. Enable it manually if you want it (ToilHead's
@@ -100,7 +116,8 @@ internal sealed class PluginConfig
             ["Earth Leviathan"]    = (false, 2, 0, 1), // burrows through terrain — broken indoors
             ["RadMech"]            = (false, 2, 0, 1), // Old Bird
             ["Old Bird"]           = (false, 2, 0, 1),
-            ["Bush Wolf"]          = (false, 6, 0, 1), // Kidnapper Fox
+            ["Bush Wolf"]          = (false, 6, 0, 1), // Kidnapper Fox — needs vain shrouds
+            ["GiantKiwi"]          = (false, 4, 0, 1), // v81, large outdoor bird
             ["Red Locust Bees"]    = (false, 5, 0, 1), // needs a hive to behave properly
             ["Docile Locust Bees"] = (false, 5, 0, 2),
             ["Butler Bees"]        = (false, 3, 0, 1), // normally spawned from a dead Butler
@@ -152,6 +169,15 @@ internal sealed class PluginConfig
                 "Percent chance (0-100) that a spawned Coil-Head or Manticoil gets a turret " +
                 "on its head via the ToilHead mod. Ignored when ToilHead is not installed.",
                 new AcceptableValueRange<int>(0, 100)));
+
+        VainShroudIterations = file.Bind("Integration", "VainShroudIterations", 0,
+            new ConfigDescription(
+                "Grows vain shrouds (weeds) on the Company moon by setting the level's own " +
+                "moldSpreadIterations, so the game generates and network-syncs them exactly like " +
+                "on any other moon. Required by the Kidnapper Fox (Bush Wolf), which despawns " +
+                "itself on spawn when there is nothing to hide in. 0 = automatic: weeds are grown " +
+                "only when Bush Wolf is enabled (12 iterations). Higher = more overgrowth.",
+                new AcceptableValueRange<int>(0, 40)));
 
         ToilSlayerChance = file.Bind("Integration", "ToilSlayerChance", 0,
             new ConfigDescription(
@@ -211,9 +237,14 @@ internal sealed class PluginConfig
     /// Gets (binding on first use) the config block for one enemy type.
     /// Called lazily because EnemyType assets only exist once the game has loaded.
     /// </summary>
-    public EnemySpawnSettings For(EnemyType type)
+    public EnemySpawnSettings For(EnemyType type) => ForName(type.enemyName);
+
+    /// <summary>
+    /// Same as <see cref="For"/> but keyed by name, so settings can be read
+    /// before the EnemyType assets are looked up (e.g. at level load).
+    /// </summary>
+    public EnemySpawnSettings ForName(string name)
     {
-        string name = type.enemyName;
         if (_enemySettings.TryGetValue(name, out var cached))
             return cached;
 

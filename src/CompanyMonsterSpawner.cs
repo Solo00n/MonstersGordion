@@ -24,6 +24,8 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     private Coroutine _loop;
     private Coroutine _maintenance;
     private bool _shuttingDown;
+    private bool _hasVainShrouds;
+    private readonly HashSet<string> _warnedRequirements = new(StringComparer.OrdinalIgnoreCase);
 
     // ---------------------------------------------------------------- lifecycle
 
@@ -103,6 +105,10 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
                 "Spawning is disabled for this landing.");
             return;
         }
+
+        // Weeds are generated during level load; evaluate once so GetWeeds()
+        // (which logs on every call) is not hit each spawn cycle.
+        _hasVainShrouds = CheckVainShrouds();
 
         CreateAINodes(cfg.AINodeCount.Value);
         _loop = StartCoroutine(SpawnLoop());
@@ -214,6 +220,8 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             alivePerType.TryGetValue(type.enemyName, out int alive);
             if (alive >= s.MaxSpawnCount.Value)
                 continue;
+            if (!MeetsMapRequirements(type))
+                continue;
             candidates.Add((type, s, alive));
         }
 
@@ -267,6 +275,50 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         }
 
         SpawnEnemy(picked.type, point.Value);
+    }
+
+    /// <summary>
+    /// Blocks enemies whose map requirements this moon does not satisfy, so they
+    /// are never spawned into an instant self-despawn. The reason is logged once
+    /// per landing, naming the AI class.
+    /// </summary>
+    private static bool CheckVainShrouds()
+    {
+        try
+        {
+            var mold = UnityEngine.Object.FindObjectOfType<MoldSpreadManager>();
+            if (mold == null)
+            {
+                Plugin.DebugLog("No MoldSpreadManager on this moon — no vain shrouds.");
+                return false;
+            }
+            bool weeds = mold.GetWeeds();
+            Plugin.Log.LogInfo($"Vain shrouds present: {weeds}.");
+            return weeds;
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.LogWarning($"Vain shroud check failed: {e.Message}");
+            return false;
+        }
+    }
+
+    private bool MeetsMapRequirements(EnemyType type)
+    {
+        if (string.Equals(type.enemyName, "Bush Wolf", StringComparison.OrdinalIgnoreCase)
+            && !_hasVainShrouds)
+        {
+            if (_warnedRequirements.Add(type.enemyName))
+            {
+                Plugin.Log.LogWarning(
+                    $"Not spawning '{type.enemyName}' [{EnemyCatalog.AIClassName(type)}]: it needs " +
+                    "vain shrouds to hide in and none grew on this moon. Weeds are grown at level " +
+                    "load, so set [Integration] VainShroudIterations > 0 (or keep it at 0 with " +
+                    "Bush Wolf enabled) and fly to Gordion again — enabling it mid-round is too late.");
+            }
+            return false;
+        }
+        return true;
     }
 
     private static (EnemyType type, EnemySpawnSettings s, int alive) WeightedPick(

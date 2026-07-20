@@ -15,15 +15,26 @@ internal static class EnemyCatalog
     private static readonly HashSet<string> HardExcluded =
         new(StringComparer.OrdinalIgnoreCase) { "Lasso", "Red pill" };
 
-    // Enemies that cannot work on Gordion no matter what this mod does,
-    // with the reason logged once so the exclusion is not mysterious.
-    private static readonly Dictionary<string, string> Unsupported =
+    // Enemies with map requirements this moon does not naturally satisfy.
+    // They stay in the pool — the notes are logged so a silent no-show is never
+    // a mystery, and the spawner re-checks the requirement before each spawn.
+    private static readonly Dictionary<string, string> Notes =
         new(StringComparer.OrdinalIgnoreCase)
         {
             ["Bush Wolf"] =
-                "BushWolfEnemy.Start() calls KillEnemyOnOwnerClient() immediately when the map has " +
-                "no vain shrouds (weeds) to hide in, and Gordion has none — it would despawn itself " +
-                "the moment it spawns",
+                "BushWolfEnemy needs vain shrouds to hide in and despawns itself on spawn without " +
+                "them. Set [Integration] VainShroudIterations (or just leave it at 0 — enabling " +
+                "Bush Wolf grows weeds automatically)",
+            ["Cadaver Bloom"] =
+                "CadaverBloomAI spawns as a dormant, invisible, agent-disabled seed by design — it " +
+                "is planted and woken by Cadaver Growths. Enable 'Cadaver Growths' instead of " +
+                "spawning Blooms directly",
+            ["Feiopar"] =
+                "PumaAI normally stalks from trees; inside the Company building it falls back to " +
+                "ground stalking",
+            ["Earth Leviathan"] =
+                "SandWormAI burrows through terrain and surfaces under players — it works, but " +
+                "looks wrong indoors",
         };
 
     /// <summary>Every name that is not allowed to exist, for the ForeignEnemies policy.</summary>
@@ -34,14 +45,28 @@ internal static class EnemyCatalog
     internal static bool IsExcluded(string enemyName) =>
         enemyName != null && Excluded.Contains(enemyName);
 
+    /// <summary>The EnemyAI subclass on the prefab, e.g. "PumaAI" — used in logs.</summary>
+    internal static string AIClassName(EnemyType type)
+    {
+        try
+        {
+            var ai = type.enemyPrefab != null
+                ? type.enemyPrefab.GetComponentInChildren<EnemyAI>(includeInactive: true)
+                : null;
+            return ai != null ? ai.GetType().Name : "<no EnemyAI component>";
+        }
+        catch (Exception e)
+        {
+            return $"<unreadable: {e.GetType().Name}>";
+        }
+    }
+
     internal static void Resolve()
     {
         Enemies.Clear();
         Excluded.Clear();
 
         foreach (string name in HardExcluded)
-            Excluded.Add(name);
-        foreach (string name in Unsupported.Keys)
             Excluded.Add(name);
         foreach (string name in (Plugin.Cfg.ExcludedEnemies.Value ?? string.Empty)
                      .Split(',')
@@ -52,22 +77,26 @@ internal static class EnemyCatalog
         }
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var skippedUnsupported = new List<string>();
+        var rejected = new List<string>();
         foreach (var type in Resources.FindObjectsOfTypeAll<EnemyType>())
         {
             if (type == null || string.IsNullOrWhiteSpace(type.enemyName))
                 continue;
-            if (type.enemyPrefab == null)
-                continue; // not spawnable
             if (!seen.Add(type.enemyName))
                 continue; // FindObjectsOfTypeAll can return duplicates
-            if (Unsupported.ContainsKey(type.enemyName))
+
+            if (type.enemyPrefab == null)
             {
-                skippedUnsupported.Add(type.enemyName);
+                rejected.Add($"'{type.enemyName}' [no prefab] — the EnemyType asset has no " +
+                             "enemyPrefab, so it cannot be instantiated");
                 continue;
             }
             if (Excluded.Contains(type.enemyName))
+            {
+                rejected.Add($"'{type.enemyName}' [{AIClassName(type)}] — excluded " +
+                             "(ExcludedEnemies blacklist or built-in exclusion)");
                 continue;
+            }
 
             Enemies.Add(type);
         }
@@ -78,20 +107,47 @@ internal static class EnemyCatalog
         foreach (var type in Enemies)
             Plugin.Cfg.For(type);
 
-        Plugin.Log.LogInfo($"Enemy catalog resolved: {Enemies.Count} spawnable types.");
-        foreach (string name in skippedUnsupported)
-            Plugin.Log.LogInfo($"Skipping '{name}': {Unsupported[name]}.");
+        Plugin.Log.LogInfo($"Enemy catalog resolved: {Enemies.Count} spawnable types " +
+                           $"({rejected.Count} rejected).");
+        LogSpawnabilityReport(rejected);
+    }
 
-        if (Plugin.Cfg.DebugMode.Value)
+    /// <summary>
+    /// Explains, per enemy, whether it can spawn and why not — so an enemy that
+    /// never shows up can always be traced to a concrete reason.
+    /// </summary>
+    private static void LogSpawnabilityReport(List<string> rejected)
+    {
+        foreach (string line in rejected)
+            Plugin.Log.LogInfo($"  rejected: {line}");
+
+        var eligible = new List<string>();
+        foreach (var type in Enemies)
         {
-            foreach (var type in Enemies)
+            var s = Plugin.Cfg.For(type);
+            string reason = null;
+            if (!s.Enabled.Value) reason = "Enabled = false";
+            else if (s.SpawnWeight.Value <= 0) reason = "SpawnWeight = 0";
+            else if (s.MaxSpawnCount.Value <= 0) reason = "MaxSpawnCount = 0";
+
+            Notes.TryGetValue(type.enemyName, out string note);
+
+            if (reason != null)
             {
-                var s = Plugin.Cfg.For(type);
-                Plugin.DebugLog(
-                    $"  {type.enemyName}: enabled={s.Enabled.Value} weight={s.SpawnWeight.Value} " +
-                    $"min={s.MinSpawnCount.Value} max={s.MaxSpawnCount.Value} " +
-                    $"outsideType={type.isOutsideEnemy}");
+                if (Plugin.Cfg.DebugMode.Value)
+                    Plugin.DebugLog($"  off: '{type.enemyName}' [{AIClassName(type)}] — {reason}" +
+                                    (note != null ? $"; note: {note}" : string.Empty));
+                continue;
             }
+
+            eligible.Add($"{type.enemyName} (w{s.SpawnWeight.Value}, max {s.MaxSpawnCount.Value}" +
+                         $"{(type.isOutsideEnemy ? ", outdoor" : ", indoor")})");
+            if (note != null)
+                Plugin.Log.LogWarning($"'{type.enemyName}' [{AIClassName(type)}] is enabled, note: {note}.");
         }
+
+        Plugin.Log.LogInfo(eligible.Count > 0
+            ? "Spawn pool: " + string.Join(", ", eligible)
+            : "Spawn pool is EMPTY — nothing is enabled with a non-zero weight and max count.");
     }
 }

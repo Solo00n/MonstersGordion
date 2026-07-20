@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.0.6
+
+- **Vain shrouds can now be grown on Gordion**, which makes the Kidnapper Fox
+  (Bush Wolf) playable instead of excluded. New `[Integration]
+  VainShroudIterations`: the mod sets the level's own `moldSpreadIterations`
+  before load, so weeds are generated and network-synced through the vanilla
+  path (clients need no mod). `0` = automatic — weeds grow only when Bush Wolf
+  is enabled. Bush Wolf is no longer force-excluded; it is simply skipped, with
+  a logged explanation, if no weeds exist on the moon.
+- **Correct defaults for the v81 vanilla enemies** that previously fell through
+  to the "unknown, disabled" fallback: `Feiopar` (PumaAI), `Cadaver Growths`
+  (CadaverGrowthAI), `Cadaver Bloom` (CadaverBloomAI), `Stingray` (StingrayAI)
+  and `GiantKiwi` (GiantKiwiAI).
+- **Spawnability report in the log.** Every landing now lists the resulting
+  spawn pool and, for anything that will not spawn, the enemy name, its AI class
+  and the concrete reason (no prefab, blacklisted, `Enabled = false`,
+  `SpawnWeight = 0`, `MaxSpawnCount = 0`, or an unmet map requirement).
+- Enabled enemies with known map caveats now log them: Bush Wolf's weed
+  requirement, Cadaver Bloom being a dormant seed that only Cadaver Growths
+  plants and wakes (enable `Cadaver Growths` instead of spawning Blooms
+  directly), Feiopar's tree stalking, and Earth Leviathan's burrowing.
+
 ## 1.0.5
 
 - **Enemies can finally see, chase and kill you.** `EnemyAI.PlayerIsTargetable`

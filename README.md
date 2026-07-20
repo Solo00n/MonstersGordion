@@ -87,12 +87,22 @@ enemies or `PlayerIsTargetable` — and with it every chase and every
 collision kill — silently fails. The mod still assigns interior patrol nodes,
 so enemies stay in the building. Only turn this off for debugging.
 
-### Enemies that cannot work on Gordion
+### Enemies with map requirements
 
-`Bush Wolf` (Kidnapper Fox) is excluded automatically: its `Start()` despawns it
-on the spot when the map has no vain shrouds to hide in. `Earth Leviathan`
-burrows through terrain and is disabled by default for the same class of reason.
-Modded enemies with their own map requirements may behave similarly.
+- **Bush Wolf** (Kidnapper Fox) despawns itself on spawn if the moon has no vain
+  shrouds. Enable it and the mod grows weeds for you — it sets the level's own
+  `moldSpreadIterations`, so the game generates and network-syncs them exactly
+  like on any other moon. Tune the amount with `[Integration]
+  VainShroudIterations`. Weeds are grown at level load, so enable it *before*
+  flying to Gordion.
+- **Cadaver Bloom** spawns as a dormant, invisible seed by design — it is planted
+  and woken by **Cadaver Growths**. Enable `Cadaver Growths` instead.
+- **Feiopar** (PumaAI) normally stalks from trees and falls back to ground
+  stalking indoors. **Earth Leviathan** burrows through terrain and looks wrong
+  inside a building; both are playable but imperfect.
+
+Whatever the cause, every landing writes a spawnability report to the log naming
+each enemy, its AI class and why it will or will not spawn.
 
 Per-enemy sections: `[Enemy.Flowerman]`, `[Enemy.Bunker Spider]`, … with
 `Enabled`, `SpawnWeight`, `MinSpawnCount`, `MaxSpawnCount`. Defaults: interior
