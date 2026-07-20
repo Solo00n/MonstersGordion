@@ -1,0 +1,10 @@
+{
+  "name": "MonstersGordion",
+  "version_number": "1.0.3",
+  "website_url": "https://github.com/CHANGE-ME/MonstersGordion",
+  "description": "Configurable monster spawning inside the Company building on 71-Gordion: timers, weights, caps, floor balance, outdoor/indoor pools. Integrates with ToilHead, StarlancerAIFix and BCME.",
+  "dependencies": [
+    "BepInEx-BepInExPack-5.4.2305",
+    "TRizzle-NavMeshInCompanyRedux-1.2.0"
+  ]
+}

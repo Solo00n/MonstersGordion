@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <AssemblyName>MonstersGordion</AssemblyName>
+    <RootNamespace>MonstersGordion</RootNamespace>
+    <Product>MonstersGordion</Product>
+    <Version>1.0.3</Version>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- BepInEx.PluginInfoProps generates MyPluginInfo from these -->
+    <BepInExPluginGuid>Timofey.MonstersGordion</BepInExPluginGuid>
+    <BepInExPluginName>MonstersGordion</BepInExPluginName>
+    <BepInExPluginVersion>1.0.3</BepInExPluginVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Core" Version="5.4.21" PrivateAssets="all" />
+    <PackageReference Include="BepInEx.PluginInfoProps" Version="2.1.0" PrivateAssets="all" />
+    <!-- Stripped + publicized game assemblies (Assembly-CSharp, Unity modules, Netcode).
+         The version tracks the game build; "*-*" always pulls the newest published set. -->
+    <PackageReference Include="LethalCompany.GameLibs.Steam" Version="*-*" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Optional: copy the built DLL straight into the game's plugin folder.
+       Set the LC_PLUGINS env var (or edit the path) to enable. -->
+  <Target Name="CopyToGame" AfterTargets="Build" Condition="'$(LC_PLUGINS)' != ''">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(LC_PLUGINS)" />
+  </Target>
+
+</Project>
