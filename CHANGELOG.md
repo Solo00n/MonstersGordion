@@ -1,15 +1,27 @@
 # Changelog
 
+## 1.0.8
+
+- **Corrected the nest attribution.** The nest-requiring enemy in vanilla v81 is
+  the **Giant Kiwi** (`GiantKiwiAI`, `birdNestPrefab`), not the Old Bird — the
+  1.0.7 notes were wrong. The nest feature is data-driven off the EnemyType flags,
+  so it already served the correct enemy; only the documentation is fixed.
+- **Old Bird (RadMech) instant-death is still open.** It does not use a nest, so
+  1.0.7 did not address it. Added an early-death diagnostic: when an enemy we
+  spawned dies within 4 s, the log records its AI class and a **stack trace naming
+  whatever called `KillEnemy`**, so the real cause can be identified from one
+  landing instead of guessed.
+
 ## 1.0.7
 
-- **Nest-requiring enemies work now — Old Bird (RadMech) above all.** `EnemyAI.Start`
-  contains `if (!foundNest && enemyType.requireNestObjectsToSpawn) { isEnemyDead = true;
+- **Nest-requiring enemies work now.** `EnemyAI.Start` contains
+  `if (!foundNest && enemyType.requireNestObjectsToSpawn) { isEnemyDead = true;
   Destroy(gameObject); }`, and Gordion places no nests during level generation, so
-  Old Birds destroyed themselves roughly 13 ms after spawning and the moon stayed
-  empty. The mod now places the enemy's own nest prefab on the interior navmesh
-  (properly network-spawned) before spawning it; the enemy finds it, teleports onto
-  it via `UseNestSpawnObject` and lives inside the building. Nests are cleaned up
-  when the ship leaves.
+  such an enemy destroyed itself one frame after spawning. The mod now places the
+  enemy's own nest prefab on the interior navmesh (properly network-spawned) before
+  spawning it; the enemy finds it, teleports onto it via `UseNestSpawnObject` and
+  lives inside the building. Nests are cleaned up when the ship leaves. (In v81 this
+  is the Giant Kiwi — see 1.0.8; the 1.0.7 notes mis-named it the Old Bird.)
 - If a nest cannot be placed, the enemy is skipped with a logged reason naming its
   AI class instead of being spawned into an instant self-destruct.
 

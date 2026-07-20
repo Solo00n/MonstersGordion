@@ -21,6 +21,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     private readonly List<GameObject> _aiNodes = new();
     private readonly List<EnemyAI> _ownedEnemies = new();
     private readonly List<GameObject> _ownedNests = new();
+    private readonly Dictionary<int, float> _spawnTimes = new();
     private NavMeshSampler _sampler;
     private Coroutine _loop;
     private Coroutine _maintenance;
@@ -287,13 +288,19 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     /// <summary>
     /// Some enemies refuse to exist without their nest: EnemyAI.Start() runs
     /// <c>if (!foundNest &amp;&amp; enemyType.requireNestObjectsToSpawn) { isEnemyDead = true;
-    /// Destroy(gameObject); }</c>. Old Birds (RadMech) are the obvious case — they
-    /// self-destructed within one frame of spawning here, because Gordion places
-    /// no nests during level generation.
+    /// Destroy(gameObject); }</c>. In vanilla v81 the Giant Kiwi (GiantKiwiAI,
+    /// with its birdNestPrefab) is the clear case; Gordion places no nests during
+    /// level generation, so such an enemy self-destructs one frame after spawning.
     ///
-    /// So we place one ourselves, on the interior navmesh: the enemy then finds
-    /// it, calls UseNestSpawnObject (which teleports it onto the nest and
-    /// consumes it) and lives inside the building like everything else.
+    /// This is data-driven off the EnemyType flags, not a hardcoded enemy list —
+    /// it applies to whatever type actually declares a nest requirement. We place
+    /// the nest ourselves on the interior navmesh; the enemy finds it, calls
+    /// UseNestSpawnObject (which teleports it onto the nest and consumes it) and
+    /// lives inside the building.
+    ///
+    /// NOTE: the Old Bird (RadMech) does NOT use a nest — its instant death on
+    /// Gordion has a different, still-unconfirmed cause (see the early-death
+    /// stack-trace diagnostic in OnEnemyKilled).
     /// </summary>
     private bool EnsureNestFor(EnemyType type)
     {
@@ -471,7 +478,45 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     {
         if (Instance == null || enemy == null || enemy.enemyType == null)
             return;
-        Plugin.DebugLog($"Enemy died: {enemy.enemyType.enemyName}.");
+        Instance.OnEnemyKilled(enemy);
+    }
+
+    // Enemies that die almost immediately are being culled by something (another
+    // mod's KillEnemy, a vanilla validity check, a collision). Static analysis
+    // cannot name the caller, so log a stack trace for the first few early
+    // deaths — the trace names exactly who called KillEnemy.
+    private const float EarlyDeathSeconds = 4f;
+    private int _earlyDeathTracesLogged;
+
+    private void OnEnemyKilled(EnemyAI enemy)
+    {
+        string name = enemy.enemyType.enemyName;
+        int id = enemy.GetInstanceID();
+
+        if (_spawnTimes.TryGetValue(id, out float spawnedAt))
+        {
+            float age = Time.realtimeSinceStartup - spawnedAt;
+            _spawnTimes.Remove(id);
+
+            if (age <= EarlyDeathSeconds)
+            {
+                if (_earlyDeathTracesLogged < 5)
+                {
+                    _earlyDeathTracesLogged++;
+                    Plugin.Log.LogWarning(
+                        $"'{name}' [{EnemyCatalog.AIClassName(enemy.enemyType)}] died only {age:F2}s " +
+                        $"after we spawned it — something is culling it. Caller stack trace:\n" +
+                        new System.Diagnostics.StackTrace(fNeedFileInfo: false));
+                }
+                else
+                {
+                    Plugin.Log.LogWarning($"'{name}' died {age:F2}s after spawn (stack trace suppressed after 5).");
+                }
+                return;
+            }
+        }
+
+        Plugin.DebugLog($"Enemy died: {name}.");
     }
 
     // ---------------------------------------------------------------- spawning
@@ -506,6 +551,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             }
 
             _ownedEnemies.Add(ai);
+            _spawnTimes[ai.GetInstanceID()] = Time.realtimeSinceStartup;
             Plugin.DebugLog($"Spawned '{type.enemyName}' at {spawnPosition}.");
             StartCoroutine(PostSpawnSetup(ai));
         }
