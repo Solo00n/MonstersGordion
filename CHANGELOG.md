@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.4
+
+- No gameplay changes: version bump for Thunderstore (1.0.3 was already
+  published there) with the website_url pointing to the GitHub repository.
+
 ## 1.0.3
 
 - **Manticoil is now disabled by default** (it behaves erratically on Gordion); enable it in `[Enemy.Manticoil]` if you want it back — the ToilHead "Manti-Toil" integration still applies.
