@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.0.5
+
+- **Enemies can finally see, chase and kill you.** `EnemyAI.PlayerIsTargetable`
+  requires `player.isInsideFactory != enemy.isOutside`, and players inside the
+  Company building are *not* flagged as being in a factory (there is no
+  EntranceTeleport there). Enemies were being flagged as interior, so the check
+  failed for every player — Masked walked up and calmly walked away,
+  `MeetsStandardPlayerCollisionConditions` refused every kill, and many AIs had
+  no valid target to path toward. Spawned enemies are now flagged as outdoor
+  enemies (`[Advanced] TreatEnemiesAsOutside`, default true) while still being
+  pointed at interior patrol nodes.
+- **Patrol nodes are now created twice per position**, tagged `AINode` and
+  `OutsideAINode`, so an AI that re-resolves its nodes lands inside the building
+  either way instead of trekking to the outdoor node field.
+- **New maintenance pass** (`[Advanced] MaintenanceInterval`, default 3 s):
+  re-applies AI flags and node sets to spawned enemies, and teleports any enemy
+  that ended up somewhere unreachable back onto the interior navmesh.
+- **The blacklist now applies to the whole moon**: `[Advanced] ForeignEnemies`
+  (default `RemoveExcluded`) despawns blacklisted enemy types even when another
+  mod spawned them (vanilla spawn cycles, BrutalCompanyMinus, MoreEnemies), which
+  is why blacklisted baboon hawks and worms could still appear. `Ignore` restores
+  the old behaviour; `RemoveNotEnabled` also removes types with `Enabled = false`.
+  Enemies in a kill animation are never removed.
+- **Bush Wolf (Kidnapper Fox) is now excluded automatically** with a logged
+  reason: `BushWolfEnemy.Start()` kills itself immediately when the map has no
+  vain shrouds to hide in, and Gordion has none.
+
 ## 1.0.4
 
 - No gameplay changes: version bump for Thunderstore (1.0.3 was already

@@ -5,6 +5,19 @@ using BepInEx.Configuration;
 
 namespace MonstersGordion;
 
+/// <summary>What to do about enemies this mod did not spawn (game, BCME, MoreEnemies...).</summary>
+internal enum ForeignEnemyPolicy
+{
+    /// <summary>Leave them alone.</summary>
+    Ignore,
+
+    /// <summary>Despawn types listed in ExcludedEnemies (and unsupported ones).</summary>
+    RemoveExcluded,
+
+    /// <summary>Despawn anything that is excluded or has Enabled = false in this config.</summary>
+    RemoveNotEnabled,
+}
+
 /// <summary>Per-enemy-type spawn settings bound to the BepInEx config file.</summary>
 internal sealed class EnemySpawnSettings
 {
@@ -39,6 +52,9 @@ internal sealed class PluginConfig
     public readonly ConfigEntry<int> AINodeCount;
     public readonly ConfigEntry<bool> RequireIndoorPoints;
     public readonly ConfigEntry<string> ExcludedEnemies;
+    public readonly ConfigEntry<bool> TreatEnemiesAsOutside;
+    public readonly ConfigEntry<float> MaintenanceInterval;
+    public readonly ConfigEntry<ForeignEnemyPolicy> ForeignEnemies;
 
     private readonly ConfigFile _file;
     private readonly Dictionary<string, EnemySpawnSettings> _enemySettings =
@@ -169,7 +185,26 @@ internal sealed class PluginConfig
 
         ExcludedEnemies = file.Bind("Advanced", "ExcludedEnemies", "",
             "Comma-separated list of additional EnemyType names to exclude from the pool entirely " +
-            "(on top of the built-in exclusions: Lasso, Red pill).");
+            "(on top of the built-in exclusions: Lasso, Red pill, Bush Wolf).");
+
+        TreatEnemiesAsOutside = file.Bind("Advanced", "TreatEnemiesAsOutside", true,
+            "REQUIRED for enemies to be able to see, chase and kill you. The game decides whether " +
+            "an enemy may target a player with 'player.isInsideFactory != enemy.isOutside'. Inside " +
+            "the Company building players are NOT flagged as being in a factory, so enemies must be " +
+            "flagged as outside enemies or they will walk past you and never attack. Only turn this " +
+            "off for debugging.");
+
+        MaintenanceInterval = file.Bind("Advanced", "MaintenanceInterval", 3f,
+            new ConfigDescription(
+                "How often (seconds) to re-apply AI settings to spawned enemies, rescue enemies that " +
+                "wandered somewhere unreachable, and apply the ForeignEnemies policy.",
+                new AcceptableValueRange<float>(1f, 30f)));
+
+        ForeignEnemies = file.Bind("Advanced", "ForeignEnemies", ForeignEnemyPolicy.RemoveExcluded,
+            "What to do with enemies this mod did NOT spawn (vanilla spawns, BrutalCompanyMinus, " +
+            "MoreEnemies...). Ignore = leave them; RemoveExcluded = despawn types listed in " +
+            "ExcludedEnemies, so the blacklist applies to the whole moon no matter who spawned them; " +
+            "RemoveNotEnabled = also despawn any type with Enabled = false.");
     }
 
     /// <summary>

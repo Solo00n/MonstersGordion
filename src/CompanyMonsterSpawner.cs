@@ -22,6 +22,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     private readonly List<EnemyAI> _ownedEnemies = new();
     private NavMeshSampler _sampler;
     private Coroutine _loop;
+    private Coroutine _maintenance;
     private bool _shuttingDown;
 
     // ---------------------------------------------------------------- lifecycle
@@ -105,9 +106,11 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
 
         CreateAINodes(cfg.AINodeCount.Value);
         _loop = StartCoroutine(SpawnLoop());
+        _maintenance = StartCoroutine(MaintenanceLoop());
         Plugin.Log.LogInfo(
             $"Company spawner active: cap={cfg.GlobalCap.Value}, " +
             $"interval=[{cfg.MinSpawnInterval.Value:F0}s..{cfg.MaxSpawnInterval.Value:F0}s], " +
+            $"outsideAIMode={cfg.TreatEnemiesAsOutside.Value}, foreignEnemies={cfg.ForeignEnemies.Value}, " +
             $"ToilHead={(ToilHeadCompat.Present ? $"{cfg.ToilHeadSpawnChance.Value}%" : "absent")}, " +
             $"StarlancerAIFix={(StarlancerCompat.Present ? "present" : "absent")}, " +
             $"BCME={(BcmeCompat.Present ? "present" : "absent")}.");
@@ -123,6 +126,12 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         {
             StopCoroutine(_loop);
             _loop = null;
+        }
+
+        if (_maintenance != null)
+        {
+            StopCoroutine(_maintenance);
+            _maintenance = null;
         }
 
         try
@@ -384,21 +393,33 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Makes a spawned enemy behave correctly inside the Company building.
+    ///
+    /// The critical part is <c>isOutside = true</c>. EnemyAI.PlayerIsTargetable
+    /// requires <c>player.isInsideFactory != isOutside</c>, and players in the
+    /// Company building are NOT flagged as inside a factory (there is no
+    /// EntranceTeleport there). With isOutside = false no enemy can ever target
+    /// a player — MeetsStandardPlayerCollisionConditions fails too, which is why
+    /// Masked enemies used to walk up to players and calmly walk away again.
+    ///
+    /// Node assignment must then be forced by hand: with isOutside = true
+    /// GetAINodes() hands out RoundManager's outdoor nodes, which sit far away
+    /// across unreachable geometry, so enemies would trek to a wall and idle.
+    /// </summary>
     private void ApplyInteriorAI(EnemyAI ai)
     {
         try
         {
-            GameObject[] nodes = _aiNodes.Where(n => n != null).ToArray();
+            bool outside = Plugin.Cfg.TreatEnemiesAsOutside.Value;
 
-            // Mark the enemy as an interior one and point it at our patrol nodes.
-            // SetEnemyOutside(false) re-resolves nodes from the "AINode" tag (ours),
-            // the explicit assignment afterwards is a belt-and-braces fallback in
-            // case another mod's Start postfix replaced the array meanwhile.
-            ai.isOutside = false;
-            try { ai.SetEnemyOutside(false); }
+            // SetEnemyOutside also refreshes the agent area mask for the enemy
+            // size class, which we want; it clobbers allAINodes, so assign after.
+            try { ai.SetEnemyOutside(outside); }
             catch (Exception e) { Plugin.DebugLog($"SetEnemyOutside threw: {e.Message}"); }
-            if (nodes.Length > 0)
-                ai.allAINodes = nodes;
+            ai.isOutside = outside;
+
+            AssignNodes(ai);
 
             // Make sure the agent actually sits on the navmesh.
             if (ai.agent != null && ai.agent.isActiveAndEnabled
@@ -417,11 +438,136 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         }
     }
 
+    private void AssignNodes(EnemyAI ai)
+    {
+        GameObject[] nodes = _aiNodes.Where(n => n != null).ToArray();
+        if (nodes.Length > 0)
+            ai.allAINodes = nodes;
+    }
+
+    // ---------------------------------------------------------------- maintenance
+
+    /// <summary>
+    /// Periodic upkeep: enemy AI settings are re-applied (anything that calls
+    /// GetAINodes() again would otherwise send an enemy off to the outdoor
+    /// nodes), enemies that ended up somewhere unreachable are teleported back,
+    /// and the ForeignEnemies policy is enforced.
+    /// </summary>
+    private IEnumerator MaintenanceLoop()
+    {
+        while (true)
+        {
+            yield return new WaitForSeconds(Mathf.Max(1f, Plugin.Cfg.MaintenanceInterval.Value));
+            try
+            {
+                MaintenanceTick();
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogError($"Maintenance tick failed: {e}");
+            }
+        }
+    }
+
+    private void MaintenanceTick()
+    {
+        if (StartOfRound.Instance == null || StartOfRound.Instance.shipIsLeaving)
+            return;
+
+        _ownedEnemies.RemoveAll(e => e == null || e.isEnemyDead);
+
+        bool outside = Plugin.Cfg.TreatEnemiesAsOutside.Value;
+        GameObject[] nodes = _aiNodes.Where(n => n != null).ToArray();
+
+        foreach (var ai in _ownedEnemies)
+        {
+            if (ai == null || ai.isEnemyDead || ai.inSpecialAnimation)
+                continue;
+
+            if (ai.isOutside != outside)
+            {
+                ai.isOutside = outside;
+                Plugin.DebugLog($"Re-applied isOutside={outside} to '{ai.enemyType?.enemyName}'.");
+            }
+
+            // Something replaced our node set (GetAINodes, another mod) — restore it.
+            if (nodes.Length > 0 && (ai.allAINodes == null || ai.allAINodes.Length != nodes.Length
+                                     || (ai.allAINodes.Length > 0 && ai.allAINodes[0] != nodes[0])))
+            {
+                ai.allAINodes = nodes;
+                Plugin.DebugLog($"Restored patrol nodes for '{ai.enemyType?.enemyName}'.");
+            }
+
+            RescueIfStranded(ai);
+        }
+
+        EnforceForeignEnemyPolicy();
+    }
+
+    /// <summary>Teleports an enemy back inside if it can no longer reach the building.</summary>
+    private void RescueIfStranded(EnemyAI ai)
+    {
+        if (_sampler == null || ai.agent == null || !ai.agent.isActiveAndEnabled)
+            return;
+        if (_sampler.IsReachable(ai.transform.position))
+            return;
+
+        Vector3? point = _sampler.GetRandomPoint(
+            Plugin.Cfg.MinDistanceFromPlayers.Value, 8, Plugin.Cfg.UpperFloorSpawnShare.Value);
+        if (point == null)
+            return;
+
+        ai.agent.Warp(point.Value + Vector3.up * Plugin.Cfg.SpawnYOffset.Value);
+        Plugin.Log.LogInfo(
+            $"Rescued stranded '{ai.enemyType?.enemyName}' — teleported back onto the interior navmesh.");
+    }
+
+    /// <summary>
+    /// Applies the blacklist to enemies this mod did not spawn. Vanilla spawn
+    /// cycles, BrutalCompanyMinus events and MoreEnemies all bypass our config,
+    /// which is why blacklisted baboon hawks and worms could still show up.
+    /// </summary>
+    private void EnforceForeignEnemyPolicy()
+    {
+        var policy = Plugin.Cfg.ForeignEnemies.Value;
+        if (policy == ForeignEnemyPolicy.Ignore)
+            return;
+
+        var rm = RoundManager.Instance;
+        if (rm == null)
+            return;
+
+        foreach (var enemy in rm.SpawnedEnemies.Where(e => e != null).ToList())
+        {
+            if (enemy.isEnemyDead || enemy.enemyType == null)
+                continue;
+            if (_ownedEnemies.Contains(enemy))
+                continue; // ours: already validated against the config
+            if (enemy.inSpecialAnimation || enemy.inSpecialAnimationWithPlayer != null)
+                continue; // mid kill animation — removing it would strand the player
+
+            string name = enemy.enemyType.enemyName;
+            bool remove = EnemyCatalog.IsExcluded(name);
+            if (!remove && policy == ForeignEnemyPolicy.RemoveNotEnabled)
+                remove = !Plugin.Cfg.For(enemy.enemyType).Enabled.Value;
+            if (!remove)
+                continue;
+
+            if (TryDespawn(rm, enemy))
+                Plugin.Log.LogInfo($"Removed '{name}' spawned by another mod (ForeignEnemies={policy}).");
+        }
+    }
+
     // ---------------------------------------------------------------- AI nodes
 
     /// <summary>
     /// The Company building has no vanilla interior AI nodes, so roam/patrol AI
     /// would have nothing to walk between. Generate our own on the navmesh.
+    ///
+    /// Each position gets two objects: one tagged "AINode" (what indoor logic
+    /// and StarlancerAIFix look up) and one tagged "OutsideAINode" (what enemies
+    /// flagged as outdoors look up). Whichever way an AI re-resolves its nodes,
+    /// it lands on a point inside the building.
     /// </summary>
     private void CreateAINodes(int count)
     {
@@ -433,14 +579,20 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             if (point == null)
                 continue;
 
-            var node = new GameObject($"MG_AINode_{i}");
-            node.transform.SetParent(transform, worldPositionStays: false);
-            node.transform.position = point.Value;
-            try { node.tag = "AINode"; }
-            catch (Exception e) { Plugin.DebugLog($"Could not tag AI node: {e.Message}"); }
-            _aiNodes.Add(node);
+            _aiNodes.Add(CreateNode($"MG_AINode_{i}", point.Value, "AINode"));
+            _aiNodes.Add(CreateNode($"MG_OutsideAINode_{i}", point.Value, "OutsideAINode"));
         }
-        Plugin.Log.LogInfo($"Created {_aiNodes.Count} interior AI patrol nodes.");
+        Plugin.Log.LogInfo($"Created {_aiNodes.Count / 2} interior AI patrol nodes (indoor + outdoor tagged).");
+    }
+
+    private GameObject CreateNode(string name, Vector3 position, string tagName)
+    {
+        var node = new GameObject(name);
+        node.transform.SetParent(transform, worldPositionStays: false);
+        node.transform.position = position;
+        try { node.tag = tagName; }
+        catch (Exception e) { Plugin.DebugLog($"Could not tag AI node '{tagName}': {e.Message}"); }
+        return node;
     }
 
     // ---------------------------------------------------------------- despawning

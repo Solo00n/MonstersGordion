@@ -74,6 +74,25 @@ require a game restart (standard BepInEx behaviour).
 | Advanced | AINodeCount | 20 | generated interior patrol nodes |
 | Advanced | RequireIndoorPoints | true | require a ceiling above spawn points |
 | Advanced | ExcludedEnemies | (empty) | extra comma-separated exclusions |
+| Advanced | TreatEnemiesAsOutside | true | required for enemies to be able to target players (see below) |
+| Advanced | MaintenanceInterval | 3 | seconds between AI re-apply / rescue / cleanup passes |
+| Advanced | ForeignEnemies | RemoveExcluded | apply the blacklist to enemies spawned by other mods |
+
+### Why `TreatEnemiesAsOutside` exists
+
+The game gates targeting behind `player.isInsideFactory != enemy.isOutside`.
+Players inside the Company building are **not** flagged as being in a factory
+(there is no EntranceTeleport there), so enemies must be flagged as outdoor
+enemies or `PlayerIsTargetable` — and with it every chase and every
+collision kill — silently fails. The mod still assigns interior patrol nodes,
+so enemies stay in the building. Only turn this off for debugging.
+
+### Enemies that cannot work on Gordion
+
+`Bush Wolf` (Kidnapper Fox) is excluded automatically: its `Start()` despawns it
+on the spot when the map has no vain shrouds to hide in. `Earth Leviathan`
+burrows through terrain and is disabled by default for the same class of reason.
+Modded enemies with their own map requirements may behave similarly.
 
 Per-enemy sections: `[Enemy.Flowerman]`, `[Enemy.Bunker Spider]`, … with
 `Enabled`, `SpawnWeight`, `MinSpawnCount`, `MaxSpawnCount`. Defaults: interior
