@@ -20,6 +20,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
 
     private readonly List<GameObject> _aiNodes = new();
     private readonly List<EnemyAI> _ownedEnemies = new();
+    private readonly List<GameObject> _ownedNests = new();
     private NavMeshSampler _sampler;
     private Coroutine _loop;
     private Coroutine _maintenance;
@@ -144,6 +145,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         {
             if (Plugin.Cfg.DespawnOnShipLeave.Value)
                 DespawnOwnedEnemies();
+            DespawnOwnedNests();
         }
         catch (Exception e)
         {
@@ -282,6 +284,104 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     /// are never spawned into an instant self-despawn. The reason is logged once
     /// per landing, naming the AI class.
     /// </summary>
+    /// <summary>
+    /// Some enemies refuse to exist without their nest: EnemyAI.Start() runs
+    /// <c>if (!foundNest &amp;&amp; enemyType.requireNestObjectsToSpawn) { isEnemyDead = true;
+    /// Destroy(gameObject); }</c>. Old Birds (RadMech) are the obvious case — they
+    /// self-destructed within one frame of spawning here, because Gordion places
+    /// no nests during level generation.
+    ///
+    /// So we place one ourselves, on the interior navmesh: the enemy then finds
+    /// it, calls UseNestSpawnObject (which teleports it onto the nest and
+    /// consumes it) and lives inside the building like everything else.
+    /// </summary>
+    private bool EnsureNestFor(EnemyType type)
+    {
+        if (type.nestSpawnPrefab == null || !type.requireNestObjectsToSpawn)
+            return true;
+
+        var rm = RoundManager.Instance;
+        if (rm == null)
+            return true;
+
+        rm.enemyNestSpawnObjects.RemoveAll(n => n == null);
+        if (rm.enemyNestSpawnObjects.Any(n => n != null && n.enemyType == type))
+            return true; // an unused nest is already waiting
+
+        Vector3? point = _sampler.GetRandomPoint(
+            Plugin.Cfg.MinDistanceFromPlayers.Value, 12, Plugin.Cfg.UpperFloorSpawnShare.Value);
+        if (point == null)
+        {
+            WarnRequirementOnce(type, "no interior navmesh point was free for its nest object");
+            return false;
+        }
+
+        GameObject nest = null;
+        try
+        {
+            nest = Instantiate(type.nestSpawnPrefab, point.Value,
+                Quaternion.Euler(0f, UnityEngine.Random.Range(-180f, 180f), 0f));
+
+            var nestComponent = nest.GetComponent<EnemyAINestSpawnObject>();
+            var netObj = nest.GetComponentInChildren<NetworkObject>();
+            if (nestComponent == null || netObj == null)
+            {
+                WarnRequirementOnce(type,
+                    $"its nest prefab '{type.nestSpawnPrefab.name}' has no " +
+                    $"{(nestComponent == null ? "EnemyAINestSpawnObject" : "NetworkObject")} component");
+                Destroy(nest);
+                return false;
+            }
+
+            netObj.Spawn(destroyWithScene: true);
+            rm.enemyNestSpawnObjects.Add(nestComponent);
+            _ownedNests.Add(nest);
+            Plugin.DebugLog($"Placed a nest for '{type.enemyName}' at {point.Value:F1}.");
+            return true;
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.LogWarning($"Could not place a nest for '{type.enemyName}': {e.Message}");
+            if (nest != null)
+                Destroy(nest);
+            return false;
+        }
+    }
+
+    private void WarnRequirementOnce(EnemyType type, string reason)
+    {
+        if (_warnedRequirements.Add(type.enemyName))
+        {
+            Plugin.Log.LogWarning(
+                $"Not spawning '{type.enemyName}' [{EnemyCatalog.AIClassName(type)}]: {reason}. " +
+                "Without it the game destroys the enemy inside EnemyAI.Start().");
+        }
+    }
+
+    private void DespawnOwnedNests()
+    {
+        foreach (var nest in _ownedNests.Where(n => n != null).ToList())
+        {
+            try
+            {
+                var component = nest.GetComponent<EnemyAINestSpawnObject>();
+                if (component != null && RoundManager.Instance != null)
+                    RoundManager.Instance.enemyNestSpawnObjects.Remove(component);
+
+                var netObj = nest.GetComponentInChildren<NetworkObject>();
+                if (netObj != null && netObj.IsSpawned)
+                    netObj.Despawn(destroy: true);
+                else
+                    Destroy(nest);
+            }
+            catch (Exception e)
+            {
+                Plugin.DebugLog($"Nest cleanup failed: {e.Message}");
+            }
+        }
+        _ownedNests.Clear();
+    }
+
     private static bool CheckVainShrouds()
     {
         try
@@ -381,6 +481,9 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         var cfg = Plugin.Cfg;
         try
         {
+            if (!EnsureNestFor(type))
+                return;
+
             Vector3 spawnPosition = point + Vector3.up * cfg.SpawnYOffset.Value;
             float yRotation = UnityEngine.Random.Range(0f, 360f);
 

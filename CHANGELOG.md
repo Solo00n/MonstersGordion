@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.7
+
+- **Nest-requiring enemies work now — Old Bird (RadMech) above all.** `EnemyAI.Start`
+  contains `if (!foundNest && enemyType.requireNestObjectsToSpawn) { isEnemyDead = true;
+  Destroy(gameObject); }`, and Gordion places no nests during level generation, so
+  Old Birds destroyed themselves roughly 13 ms after spawning and the moon stayed
+  empty. The mod now places the enemy's own nest prefab on the interior navmesh
+  (properly network-spawned) before spawning it; the enemy finds it, teleports onto
+  it via `UseNestSpawnObject` and lives inside the building. Nests are cleaned up
+  when the ship leaves.
+- If a nest cannot be placed, the enemy is skipped with a logged reason naming its
+  AI class instead of being spawned into an instant self-destruct.
+
 ## 1.0.6
 
 - **Vain shrouds can now be grown on Gordion**, which makes the Kidnapper Fox
