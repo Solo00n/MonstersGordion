@@ -25,6 +25,10 @@ internal static class EnemyCatalog
                 "BushWolfEnemy needs vain shrouds to hide in and despawns itself on spawn without " +
                 "them. Set [Integration] VainShroudIterations (or just leave it at 0 — enabling " +
                 "Bush Wolf grows weeds automatically)",
+            ["Cadaver Growths"] =
+                "CadaverGrowthAI is a map-wide master that requires a dungeon; on Gordion it logs " +
+                "'Found no dungeon' and self-destructs. It cannot work here and the mod auto-disables " +
+                "it for the landing after it keeps dying",
             ["Cadaver Bloom"] =
                 "CadaverBloomAI spawns as a dormant, invisible, agent-disabled seed by design — it " +
                 "is planted and woken by Cadaver Growths. Enable 'Cadaver Growths' instead of " +

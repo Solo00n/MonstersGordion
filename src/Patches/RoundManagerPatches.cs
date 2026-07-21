@@ -27,6 +27,13 @@ internal static class RoundManagerPatches
                 return;
 
             int iterations = Plugin.Cfg.ResolveVainShroudIterations();
+            bool bushWolf = Plugin.Cfg.ForName("Bush Wolf").Enabled.Value;
+            Plugin.Log.LogInfo(
+                $"Vain shroud setup on '{newLevel.PlanetName}': Bush Wolf enabled={bushWolf}, " +
+                $"VainShroudIterations config={Plugin.Cfg.VainShroudIterations.Value}, " +
+                $"resolved iterations={iterations}, level's current moldSpreadIterations=" +
+                $"{newLevel.moldSpreadIterations}.");
+
             if (newLevel.moldSpreadIterations == iterations)
                 return;
 

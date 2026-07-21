@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.11
+
+- **No more spawn spam from enemies that can't survive here.** Some enemies destroy
+  themselves on spawn via `Destroy()` (not `KillEnemy`), so the counter never rose and
+  they were re-spawned endlessly — most visibly **Cadaver Growths** (`CadaverGrowthAI`
+  logs "Found no dungeon" and self-destructs). The mod now watches spawns and, after a
+  type dies within a few seconds twice, disables it for the rest of the landing with a
+  clear log line. Cadaver Growths and Cadaver Bloom are also disabled by default now.
+- **Idle-stalker nudge.** An owned enemy that stands essentially still for ~25 s is
+  re-pathed to a fresh reachable point — this unsticks **Feiopar** (which parks on a
+  fake tree and stops) and any other stalled enemy. Ambush-by-design enemies (Bracken,
+  Coil-Head, Barber, Jester, Ghost Girl, Cadaver Bloom) are exempt so they behave normally.
+- **Vain shroud diagnostics.** The level-load weed setup now always logs the Bush Wolf
+  enabled state, the configured and resolved iteration counts, and the level's current
+  `moldSpreadIterations`, so a failed weed generation can be diagnosed from the log.
+
 ## 1.0.10
 
 - **Whitelist mode.** New `[Advanced] ExcludedEnemiesIsWhitelist` (default false): flip

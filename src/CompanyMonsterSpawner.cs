@@ -24,6 +24,19 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     private readonly List<EnemyAI> _ownedEnemies = new();
     private readonly List<GameObject> _ownedNests = new();
     private readonly Dictionary<int, float> _spawnTimes = new();
+
+    // Early-fail detection: types whose spawns die almost immediately (needing a
+    // dungeon/weeds/etc. this moon lacks) are disabled for the landing so they
+    // don't get spammed. Reset every landing (the spawner is recreated).
+    private readonly List<(EnemyAI ai, string name, float time)> _recentSpawns = new();
+    private readonly Dictionary<string, int> _earlyDeathCounts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _disabledThisLanding = new(StringComparer.OrdinalIgnoreCase);
+    private const int EarlyDeathsBeforeDisable = 2;
+
+    // Stuck detection: last recorded position + time per owned enemy.
+    private readonly Dictionary<int, (Vector3 pos, float time)> _lastMovement = new();
+    private const float StuckSeconds = 25f;
+    private const float StuckDistance = 1.5f;
     private NavMeshSampler _sampler;
     private Coroutine _loop;
     private Coroutine _maintenance;
@@ -220,6 +233,8 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             return;
         }
 
+        ScanForEarlyDeaths();
+
         // Build the candidate list: enabled, weighted, below its own max.
         var candidates = new List<(EnemyType type, EnemySpawnSettings s, int alive)>();
         foreach (var type in EnemyCatalog.Enemies)
@@ -227,6 +242,8 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             var s = Plugin.Cfg.For(type);
             if (!s.Enabled.Value || s.SpawnWeight.Value <= 0 || s.MaxSpawnCount.Value <= 0)
                 continue;
+            if (_disabledThisLanding.Contains(type.enemyName))
+                continue; // keeps dying on this moon — stop retrying it
             alivePerType.TryGetValue(type.enemyName, out int alive);
             if (alive >= s.MaxSpawnCount.Value)
                 continue;
@@ -435,6 +452,45 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// Detects spawns that die within EarlyDeathSeconds — including those killed
+    /// via Destroy() rather than KillEnemy() (e.g. CadaverGrowthAI's "Found no
+    /// dungeon" self-destruct) which the KillEnemy patch never sees. After a few
+    /// such deaths the type is disabled for the landing so it isn't spammed.
+    /// </summary>
+    private void ScanForEarlyDeaths()
+    {
+        float now = Time.realtimeSinceStartup;
+        for (int i = _recentSpawns.Count - 1; i >= 0; i--)
+        {
+            var (ai, name, time) = _recentSpawns[i];
+            bool dead = ai == null || ai.isEnemyDead;
+
+            if (!dead)
+            {
+                if (now - time > EarlyDeathSeconds)
+                    _recentSpawns.RemoveAt(i); // survived the window — stop tracking
+                continue;
+            }
+
+            _recentSpawns.RemoveAt(i);
+            if (now - time > EarlyDeathSeconds)
+                continue; // died, but not early — normal death
+
+            _earlyDeathCounts.TryGetValue(name, out int count);
+            count++;
+            _earlyDeathCounts[name] = count;
+
+            if (count >= EarlyDeathsBeforeDisable && _disabledThisLanding.Add(name))
+            {
+                Plugin.Log.LogWarning(
+                    $"'{name}' died within {EarlyDeathSeconds:F0}s of spawning {count} times — it " +
+                    "cannot survive on Gordion (it likely needs a dungeon, weeds or other map " +
+                    "feature this moon lacks). Disabling it until the next landing.");
+            }
+        }
+    }
+
     /// <summary>Percentage of upper-floor spawns to use for a given type.</summary>
     private static int UpperShareFor(EnemyType type)
     {
@@ -570,6 +626,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
 
             _ownedEnemies.Add(ai);
             _spawnTimes[ai.GetInstanceID()] = Time.realtimeSinceStartup;
+            _recentSpawns.Add((ai, type.enemyName, Time.realtimeSinceStartup));
             Plugin.DebugLog($"Spawned '{type.enemyName}' at {spawnPosition}.");
             StartCoroutine(PostSpawnSetup(ai));
         }
@@ -693,6 +750,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         if (StartOfRound.Instance == null || StartOfRound.Instance.shipIsLeaving)
             return;
 
+        ScanForEarlyDeaths();
         _ownedEnemies.RemoveAll(e => e == null || e.isEnemyDead);
 
         bool outside = Plugin.Cfg.TreatEnemiesAsOutside.Value;
@@ -717,18 +775,51 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
                 Plugin.DebugLog($"Restored patrol nodes for '{ai.enemyType?.enemyName}'.");
             }
 
-            RescueIfStranded(ai);
+            if (!RescueIfStranded(ai))
+                UnstickIfIdle(ai);
         }
+
+        _lastMovement.Keys
+            .Where(id => _ownedEnemies.All(e => e == null || e.GetInstanceID() != id))
+            .ToList()
+            .ForEach(id => _lastMovement.Remove(id));
 
         EnforceForeignEnemyPolicy();
     }
 
-    /// <summary>Teleports an enemy back inside if it can no longer reach the building.</summary>
-    private void RescueIfStranded(EnemyAI ai)
+    /// <summary>
+    /// Nudges an enemy that has stood essentially still for StuckSeconds by
+    /// re-pathing it to a fresh reachable point. Enemies designed to ambush from
+    /// one spot (Bracken, Coil-Head, Barber, Jester winding, Ghost Girl) are
+    /// exempt so their intended behaviour is not disrupted. Aimed mainly at
+    /// stalkers like Feiopar that park on a tree and never move on indoors.
+    /// </summary>
+    private void UnstickIfIdle(EnemyAI ai)
     {
-        if (_sampler == null || ai.agent == null || !ai.agent.isActiveAndEnabled)
+        if (ai.agent == null || !ai.agent.isActiveAndEnabled)
             return;
-        if (_sampler.IsReachable(ai.transform.position))
+
+        string name = ai.enemyType != null ? ai.enemyType.enemyName : string.Empty;
+        if (StationaryByDesign.Contains(name))
+            return;
+
+        int id = ai.GetInstanceID();
+        Vector3 pos = ai.transform.position;
+        float now = Time.realtimeSinceStartup;
+
+        if (!_lastMovement.TryGetValue(id, out var last))
+        {
+            _lastMovement[id] = (pos, now);
+            return;
+        }
+
+        if ((pos - last.pos).sqrMagnitude > StuckDistance * StuckDistance)
+        {
+            _lastMovement[id] = (pos, now); // it moved — reset the timer
+            return;
+        }
+
+        if (now - last.time < StuckSeconds)
             return;
 
         Vector3? point = _sampler.GetRandomPoint(
@@ -736,9 +827,38 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         if (point == null)
             return;
 
+        try { ai.SetDestinationToPosition(point.Value, checkForPath: false); }
+        catch (Exception e) { Plugin.DebugLog($"Unstick SetDestination failed: {e.Message}"); }
+        _lastMovement[id] = (pos, now);
+        Plugin.DebugLog($"Nudged idle '{name}' toward a new point (was stuck ~{StuckSeconds:F0}s).");
+    }
+
+    // Enemies whose AI legitimately keeps them still — never nudge these.
+    private static readonly HashSet<string> StationaryByDesign =
+        new(StringComparer.OrdinalIgnoreCase)
+        { "Flowerman", "Spring", "Clay Surgeon", "Jester", "Girl", "Cadaver Bloom" };
+
+    /// <summary>
+    /// Teleports an enemy back inside if it can no longer reach the building.
+    /// Returns true if a rescue happened (so the idle-nudge is skipped this tick).
+    /// </summary>
+    private bool RescueIfStranded(EnemyAI ai)
+    {
+        if (_sampler == null || ai.agent == null || !ai.agent.isActiveAndEnabled)
+            return false;
+        if (_sampler.IsReachable(ai.transform.position))
+            return false;
+
+        Vector3? point = _sampler.GetRandomPoint(
+            Plugin.Cfg.MinDistanceFromPlayers.Value, 8, Plugin.Cfg.UpperFloorSpawnShare.Value);
+        if (point == null)
+            return false;
+
         ai.agent.Warp(point.Value + Vector3.up * Plugin.Cfg.SpawnYOffset.Value);
+        _lastMovement[ai.GetInstanceID()] = (point.Value, Time.realtimeSinceStartup);
         Plugin.Log.LogInfo(
             $"Rescued stranded '{ai.enemyType?.enemyName}' — teleported back onto the interior navmesh.");
+        return true;
     }
 
     /// <summary>

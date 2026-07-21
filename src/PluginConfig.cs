@@ -99,10 +99,11 @@ internal sealed class PluginConfig
             ["CaveDweller"]        = (true,  4, 0, 1), // Maneater internal name in some builds
             ["Stingray"]           = (true,  8, 0, 2), // v81, hides on ceilings
             ["Feiopar"]            = (true,  6, 0, 1), // v81 PumaAI — stalks, normally from trees
-            // v81 Cadaver pair: the Growth is the map-wide master that plants and
-            // wakes the Blooms, so it is the one worth enabling. A Bloom spawned on
-            // its own stays a dormant, invisible seed (see EnemyCatalog notes).
-            ["Cadaver Growths"]    = (true,  4, 0, 1),
+            // v81 Cadaver pair. Both are disabled by default: CadaverGrowthAI is a
+            // map-wide master that requires a dungeon ("Found no dungeon") and
+            // self-destructs on Gordion, and a lone Bloom is a dormant seed the
+            // Growth would normally plant. Kept in the config for completeness.
+            ["Cadaver Growths"]    = (false, 4, 0, 1),
             ["Cadaver Bloom"]      = (false, 4, 0, 2),
             // Docile daytime critters.
             // Manticoil is disabled by default: it behaves erratically on the
