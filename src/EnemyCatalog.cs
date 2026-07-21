@@ -44,13 +44,26 @@ internal static class EnemyCatalog
                 "caller. Cause not yet confirmed",
         };
 
-    /// <summary>Every name that is not allowed to exist, for the ForeignEnemies policy.</summary>
-    internal static readonly HashSet<string> Excluded = new(StringComparer.OrdinalIgnoreCase);
+    // The configured ExcludedEnemies names, plus whether the list is a whitelist.
+    private static readonly HashSet<string> ListedNames = new(StringComparer.OrdinalIgnoreCase);
+    private static bool _whitelistMode;
 
     internal static readonly List<EnemyType> Enemies = new();
 
-    internal static bool IsExcluded(string enemyName) =>
-        enemyName != null && Excluded.Contains(enemyName);
+    /// <summary>
+    /// Whether a type is barred from the moon (drives the catalog filter and the
+    /// ForeignEnemies despawn policy). Lasso and Red pill are always barred; the
+    /// configured list is either a blacklist (default) or, in whitelist mode, an
+    /// allow-list where everything not listed is barred.
+    /// </summary>
+    internal static bool IsExcluded(string enemyName)
+    {
+        if (enemyName == null)
+            return false;
+        if (HardExcluded.Contains(enemyName))
+            return true;
+        return _whitelistMode ? !ListedNames.Contains(enemyName) : ListedNames.Contains(enemyName);
+    }
 
     /// <summary>The EnemyAI subclass on the prefab, e.g. "PumaAI" — used in logs.</summary>
     internal static string AIClassName(EnemyType type)
@@ -71,17 +84,23 @@ internal static class EnemyCatalog
     internal static void Resolve()
     {
         Enemies.Clear();
-        Excluded.Clear();
+        ListedNames.Clear();
+        _whitelistMode = Plugin.Cfg.ExcludedEnemiesIsWhitelist.Value;
 
-        foreach (string name in HardExcluded)
-            Excluded.Add(name);
         foreach (string name in (Plugin.Cfg.ExcludedEnemies.Value ?? string.Empty)
                      .Split(',')
                      .Select(s => s.Trim())
                      .Where(s => s.Length > 0))
         {
-            Excluded.Add(name);
+            ListedNames.Add(name);
         }
+
+        Plugin.Log.LogInfo(_whitelistMode
+            ? $"Enemy list is a WHITELIST of {ListedNames.Count} name(s): only these may spawn."
+            : $"Enemy list is a blacklist of {ListedNames.Count} name(s).");
+        if (_whitelistMode && ListedNames.Count == 0)
+            Plugin.Log.LogWarning(
+                "ExcludedEnemiesIsWhitelist=true but ExcludedEnemies is empty — nothing will spawn.");
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var rejected = new List<string>();
@@ -98,10 +117,12 @@ internal static class EnemyCatalog
                              "enemyPrefab, so it cannot be instantiated");
                 continue;
             }
-            if (Excluded.Contains(type.enemyName))
+            if (IsExcluded(type.enemyName))
             {
-                rejected.Add($"'{type.enemyName}' [{AIClassName(type)}] — excluded " +
-                             "(ExcludedEnemies blacklist or built-in exclusion)");
+                string why = HardExcluded.Contains(type.enemyName) ? "built-in exclusion"
+                    : _whitelistMode ? "not on the whitelist"
+                    : "on the blacklist";
+                rejected.Add($"'{type.enemyName}' [{AIClassName(type)}] — excluded ({why})");
                 continue;
             }
 

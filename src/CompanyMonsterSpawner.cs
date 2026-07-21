@@ -766,6 +766,8 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
                 continue; // mid kill animation — removing it would strand the player
 
             string name = enemy.enemyType.enemyName;
+            // IsExcluded already honours whitelist mode: in whitelist mode any
+            // enemy not on the list counts as excluded and is despawned here.
             bool remove = EnemyCatalog.IsExcluded(name);
             if (!remove && policy == ForeignEnemyPolicy.RemoveNotEnabled)
                 remove = !Plugin.Cfg.For(enemy.enemyType).Enabled.Value;

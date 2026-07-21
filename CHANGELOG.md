@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.10
+
+- **Whitelist mode.** New `[Advanced] ExcludedEnemiesIsWhitelist` (default false): flip
+  it and the `ExcludedEnemies` list becomes an allow-list — only the listed types may
+  spawn, everything else is excluded. Lasso and Red pill stay excluded regardless, and
+  an empty list in whitelist mode logs a warning (nothing would spawn). It also feeds
+  `ForeignEnemies=RemoveExcluded`, so whitelist + that policy strips any non-listed
+  enemy other mods spawn, letting you pin the whole moon to a chosen set of enemies.
+
 ## 1.0.9
 
 - **Old Bird upper-floor lock.** New `[Balance] OldBirdUpperFloorOnly` (default true):

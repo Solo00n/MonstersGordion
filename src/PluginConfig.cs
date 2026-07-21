@@ -63,6 +63,7 @@ internal sealed class PluginConfig
     public readonly ConfigEntry<int> AINodeCount;
     public readonly ConfigEntry<bool> RequireIndoorPoints;
     public readonly ConfigEntry<string> ExcludedEnemies;
+    public readonly ConfigEntry<bool> ExcludedEnemiesIsWhitelist;
     public readonly ConfigEntry<bool> TreatEnemiesAsOutside;
     public readonly ConfigEntry<float> MaintenanceInterval;
     public readonly ConfigEntry<ForeignEnemyPolicy> ForeignEnemies;
@@ -224,8 +225,15 @@ internal sealed class PluginConfig
             "Disable if the spawner reports it cannot find valid points.");
 
         ExcludedEnemies = file.Bind("Advanced", "ExcludedEnemies", "",
-            "Comma-separated list of additional EnemyType names to exclude from the pool entirely " +
-            "(on top of the built-in exclusions: Lasso, Red pill, Bush Wolf).");
+            "Comma-separated list of EnemyType names. By default this is a BLACKLIST: the listed " +
+            "types are removed from the pool (on top of the built-in exclusions Lasso and Red pill). " +
+            "See ExcludedEnemiesIsWhitelist to flip its meaning.");
+
+        ExcludedEnemiesIsWhitelist = file.Bind("Advanced", "ExcludedEnemiesIsWhitelist", false,
+            "When true, the ExcludedEnemies list becomes a WHITELIST: ONLY the listed types are " +
+            "allowed to spawn and everything else is excluded. Lasso and Red pill stay excluded " +
+            "regardless. An empty list in whitelist mode means nothing spawns. Combine with " +
+            "ForeignEnemies=RemoveExcluded to also strip non-whitelisted enemies spawned by other mods.");
 
         TreatEnemiesAsOutside = file.Bind("Advanced", "TreatEnemiesAsOutside", true,
             "REQUIRED for enemies to be able to see, chase and kill you. The game decides whether " +
