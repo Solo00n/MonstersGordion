@@ -97,8 +97,9 @@ so enemies stay in the building. Only turn this off for debugging.
 Snare Flea, Bunker Spider, Coil-Head, Ghost Girl, Spore Lizard, Nutcracker,
 Jester, Masked, Hygrodere, Butler, Barber, Maneater), plus **Stingray** and
 **Tulip Snake**, and the outdoor threats that path fine indoors — **Baboon Hawk,
-Eyeless Dog, Forest Keeper and Old Bird** (the Old Bird gets its nest placed
-automatically and is locked to the upper floor).
+Eyeless Dog, Forest Keeper, Old Bird and Giant Kiwi**. Nest-requiring types (Old
+Bird, Giant Kiwi) get their nest placed on the interior navmesh automatically;
+the Old Bird is additionally locked to the upper floor.
 
 **Disabled by default — do NOT work correctly on Gordion yet** (kept in the
 config and code, toggleable, and preserved on the `experimental` git branch):
@@ -110,7 +111,7 @@ config and code, toggleable, and preserved on the `experimental` git branch):
   **Cadaver Bloom** is a dormant seed the Growth would plant.
 - **Bush Wolf** (Kidnapper Fox) needs vain shrouds, which do not currently grow on
   the Company moon (see `[Integration] VainShroudIterations`).
-- **Earth Leviathan** burrows through terrain; **Giant Kiwi** is unconfirmed indoors.
+- **Earth Leviathan** burrows through terrain and looks wrong inside a building.
 
 Every landing writes a spawnability report to the log naming each enemy, its AI
 class and why it will or will not spawn, and the mod auto-disables any type that

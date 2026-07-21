@@ -39,13 +39,8 @@ internal static class EnemyCatalog
             ["Earth Leviathan"] =
                 "SandWormAI burrows through terrain and surfaces under players — it works, but " +
                 "looks wrong indoors",
-            ["GiantKiwi"] =
-                "GiantKiwiAI requires its nest to spawn (birdNestPrefab); the mod places one on the " +
-                "interior navmesh automatically",
-            ["RadMech"] =
-                "Old Bird. Does NOT use a nest. It has been observed to be culled by KillEnemy right " +
-                "after spawning on Gordion; the early-death diagnostic logs a stack trace naming the " +
-                "caller. Cause not yet confirmed",
+            // No notes for RadMech / GiantKiwi: both are nest-requiring and work
+            // correctly now that EnsureNestFor places their nest automatically.
         };
 
     // The configured ExcludedEnemies names, plus whether the list is a whitelist.

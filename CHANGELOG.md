@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.1
+
+- **Giant Kiwi enabled by default** — confirmed working: it is nest-requiring and
+  the mod already places its nest on the interior navmesh automatically (the 1.1.0
+  notes wrongly listed it as unconfirmed).
+- Removed the stale Old Bird note ("cause not yet confirmed") — its instant-death
+  was the missing nest, which automatic nest placement fixed; working enemies no
+  longer log warning-level notes on every landing.
+
 ## 1.1.0
 
 First stable release. Bundles every fix from the 1.0.x line and ships a curated

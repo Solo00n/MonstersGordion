@@ -103,13 +103,15 @@ internal sealed class PluginConfig
 
             // Outdoor enemies that path fine on the interior navmesh and can
             // target players (isOutside handling) — enabled at modest weights so
-            // the building gets some big threats too. Old Bird gets its nest
-            // placed automatically and is locked to the upper floor by default.
+            // the building gets some big threats too. Nest-requiring types (Old
+            // Bird, Giant Kiwi) get their nest placed automatically; the Old
+            // Bird is additionally locked to the upper floor by default.
             ["Baboon hawk"]        = (true,  8, 0, 2),
             ["MouthDog"]           = (true,  5, 0, 1), // Eyeless Dog
             ["ForestGiant"]        = (true,  3, 0, 1), // Forest Keeper
             ["RadMech"]            = (true,  3, 0, 1), // Old Bird
             ["Old Bird"]           = (true,  3, 0, 1),
+            ["GiantKiwi"]          = (true,  4, 0, 1), // v81 — nests indoors, confirmed working
 
             // ---- Disabled by default: do NOT work correctly on Gordion yet. ----
             // Kept in the config (and code) so they can be re-enabled for testing;
@@ -119,7 +121,6 @@ internal sealed class PluginConfig
             ["Cadaver Bloom"]      = (false, 4, 0, 2), // dormant seed planted by the Growth
             ["Bush Wolf"]          = (false, 6, 0, 1), // Kidnapper Fox — needs vain shrouds
             ["Earth Leviathan"]    = (false, 2, 0, 1), // burrows through terrain — broken indoors
-            ["GiantKiwi"]          = (false, 4, 0, 1), // v81 outdoor bird — unconfirmed indoors
             ["Manticoil"]          = (false, 10, 0, 3), // behaves erratically here
             ["Red Locust Bees"]    = (false, 5, 0, 1), // needs a hive
             ["Docile Locust Bees"] = (false, 5, 0, 2),
