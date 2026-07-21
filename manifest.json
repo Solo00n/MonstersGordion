@@ -1,6 +1,6 @@
 ﻿{
   "name": "MonstersGordion",
-  "version_number": "1.1.1",
+  "version_number": "1.2.0",
   "website_url": "https://github.com/Solo00n/MonstersGordion",
   "description": "Configurable monster spawning inside the Company building on 71-Gordion: timers, weights, caps, floor balance, outdoor/indoor pools. Integrates with ToilHead, StarlancerAIFix and BCME.",
   "dependencies": [

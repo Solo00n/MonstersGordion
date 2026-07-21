@@ -41,11 +41,35 @@ internal sealed class PluginConfig
     public readonly ConfigEntry<int> OutsideEnemyShare;
     public readonly ConfigEntry<bool> OldBirdUpperFloorOnly;
 
+    // [ToilHead] — per-enemy turret chances (only the three ToilHead supports).
+    public readonly ConfigEntry<int> CoilHeadTurretChance;
+    public readonly ConfigEntry<int> CoilHeadSlayerChance;
+    public readonly ConfigEntry<int> ManticoilTurretChance;
+    public readonly ConfigEntry<int> ManticoilSlayerChance;
+    public readonly ConfigEntry<int> MaskedTurretChance;
+    public readonly ConfigEntry<int> MaskedSlayerChance;
+
     // [Integration]
-    public readonly ConfigEntry<int> ToilHeadSpawnChance;
-    public readonly ConfigEntry<int> ToilSlayerChance;
     public readonly ConfigEntry<int> VainShroudIterations;
     public readonly ConfigEntry<bool> FeioparFakeTrees;
+
+    /// <summary>Turret chance (%) for a ToilHead-eligible enemy, 0 if not one.</summary>
+    public int ToilHeadTurretChance(Compat.ToilHeadCompat.Kind kind) => kind switch
+    {
+        Compat.ToilHeadCompat.Kind.CoilHead => CoilHeadTurretChance.Value,
+        Compat.ToilHeadCompat.Kind.Manticoil => ManticoilTurretChance.Value,
+        Compat.ToilHeadCompat.Kind.Masked => MaskedTurretChance.Value,
+        _ => 0,
+    };
+
+    /// <summary>Slayer (minigun) chance (%) once a turret is granted, per kind.</summary>
+    public int ToilHeadSlayerChance(Compat.ToilHeadCompat.Kind kind) => kind switch
+    {
+        Compat.ToilHeadCompat.Kind.CoilHead => CoilHeadSlayerChance.Value,
+        Compat.ToilHeadCompat.Kind.Manticoil => ManticoilSlayerChance.Value,
+        Compat.ToilHeadCompat.Kind.Masked => MaskedSlayerChance.Value,
+        _ => 0,
+    };
 
     /// <summary>Iterations to actually use, resolving the "0 = automatic" default.</summary>
     public int ResolveVainShroudIterations()
@@ -173,11 +197,23 @@ internal sealed class PluginConfig
             "UpperFloorSpawnShare for it. The Old Bird is huge and the basement is cramped, so it " +
             "moves and fights much better upstairs.");
 
-        ToilHeadSpawnChance = file.Bind("Integration", "ToilHeadSpawnChance", 25,
-            new ConfigDescription(
-                "Percent chance (0-100) that a spawned Coil-Head or Manticoil gets a turret " +
-                "on its head via the ToilHead mod. Ignored when ToilHead is not installed.",
-                new AcceptableValueRange<int>(0, 100)));
+        // [ToilHead] — the three enemies ToilHead can turret, each configurable.
+        // TurretChance = % of spawns of that enemy that get a turret; SlayerChance
+        // = % of those turrets that are the minigun "Slayer" variant. All ignored
+        // when ToilHead is not installed.
+        var pct = new AcceptableValueRange<int>(0, 100);
+        CoilHeadTurretChance = file.Bind("ToilHead", "CoilHeadTurretChance", 25,
+            new ConfigDescription("Percent chance a spawned Coil-Head gets a turret head.", pct));
+        CoilHeadSlayerChance = file.Bind("ToilHead", "CoilHeadSlayerChance", 0,
+            new ConfigDescription("Percent of Coil-Head turrets that are the Slayer (minigun) variant.", pct));
+        ManticoilTurretChance = file.Bind("ToilHead", "ManticoilTurretChance", 25,
+            new ConfigDescription("Percent chance a spawned Manticoil gets a turret head.", pct));
+        ManticoilSlayerChance = file.Bind("ToilHead", "ManticoilSlayerChance", 0,
+            new ConfigDescription("Percent of Manticoil turrets that are the Slayer (minigun) variant.", pct));
+        MaskedTurretChance = file.Bind("ToilHead", "MaskedTurretChance", 0,
+            new ConfigDescription("Percent chance a spawned Masked (mimic) gets a turret head.", pct));
+        MaskedSlayerChance = file.Bind("ToilHead", "MaskedSlayerChance", 0,
+            new ConfigDescription("Percent of Masked turrets that are the Slayer (minigun) variant.", pct));
 
         VainShroudIterations = file.Bind("Integration", "VainShroudIterations", 0,
             new ConfigDescription(
@@ -194,12 +230,6 @@ internal sealed class PluginConfig
             "fabricates fake tree nodes on the interior navmesh (with the overhead collider the game " +
             "checks for) so Feiopar can stalk and pounce. It may perch oddly near the ceiling — " +
             "turn this off if it looks broken. Ignored when Feiopar is disabled or absent.");
-
-        ToilSlayerChance = file.Bind("Integration", "ToilSlayerChance", 0,
-            new ConfigDescription(
-                "Of the turret rolls that succeed, percent chance (0-100) the turret is the " +
-                "'Slayer' (minigun) variant instead of a regular one.",
-                new AcceptableValueRange<int>(0, 100)));
 
         DespawnOnShipLeave = file.Bind("Advanced", "DespawnOnShipLeave", true,
             "Despawn enemies created by this mod when the ship leaves the Company moon.");

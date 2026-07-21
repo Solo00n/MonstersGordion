@@ -41,7 +41,7 @@ Optional, auto-detected at runtime (no hard dependency):
 
 | Package | Tested version | Integration |
 |---|---|---|
-| `Zehs-ToilHead` | 1.9.1 | `ToilHeadSpawnChance`% turret on Coil-Head/Manticoil, `ToilSlayerChance`% minigun variant |
+| `Zehs-ToilHead` | 1.9.1 | per-enemy turret chances in the `[ToilHead]` config section — Coil-Head, Manticoil and Masked, each with a Slayer (minigun) sub-chance |
 | `AudioKnight-StarlancerAIFix` | 3.13.2 | its `EnemyAI.Start` postfix applies automatically; this mod's interior fix-up runs after it |
 | `SoftDiamond-BrutalCompanyMinusExtraReborn` | 1.70.1 | shared enemy budget via `CountForeignEnemies` |
 
@@ -67,8 +67,9 @@ require a game restart (standard BepInEx behaviour).
 | Balance | UpperFloorSpawnShare | 70 | % of spawns at ship-landing level (rest → basement) |
 | Balance | OutsideEnemyShare | 50 | % chance to pick from outdoor enemy types |
 | Balance | OldBirdUpperFloorOnly | true | spawn the Old Bird only on the upper floor |
-| Integration | ToilHeadSpawnChance | 25 | % turret chance for Coil-Head/Manticoil |
-| Integration | ToilSlayerChance | 0 | % of those turrets that are the Slayer variant |
+| ToilHead | CoilHeadTurretChance / CoilHeadSlayerChance | 25 / 0 | % turret on a Coil-Head, and % of those that are the minigun Slayer |
+| ToilHead | ManticoilTurretChance / ManticoilSlayerChance | 25 / 0 | same, for Manticoil |
+| ToilHead | MaskedTurretChance / MaskedSlayerChance | 0 / 0 | same, for Masked (mimic) |
 | Integration | VainShroudIterations | 0 | grow weeds for Bush Wolf (0 = auto; experimental) |
 | Integration | FeioparFakeTrees | false | fabricate trees so Feiopar can stalk (experimental) |
 | Advanced | DespawnOnShipLeave | true | remove this mod's enemies when leaving |

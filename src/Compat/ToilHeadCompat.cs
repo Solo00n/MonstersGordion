@@ -5,32 +5,44 @@ using System.Reflection;
 namespace MonstersGordion.Compat;
 
 /// <summary>
-/// Soft integration with ToilHead (turret on a Coil-Head / Manticoil).
-/// Binds to ToilHead's public static API class (verified against ToilHead 1.9.1:
-/// com.github.zehsteam.ToilHead.Api.SetToilHeadOnServer / SetMantiToilOnServer /
-/// SetToilSlayerOnServer / SetMantiSlayerOnServer, all taking one EnemyAI),
-/// with a name-based reflection fallback for older/newer versions.
+/// Soft integration with ToilHead — puts a turret on a Coil-Head, Manticoil or
+/// Masked. Binds to ToilHead's public static API (verified against ToilHead 1.9.1:
+/// Api.SetToilHeadOnServer / SetMantiToilOnServer / SetToilMaskedOnServer and the
+/// matching *SlayerOnServer minigun variants, all taking one EnemyAI), with a
+/// name-based reflection fallback for other versions.
 /// </summary>
 internal static class ToilHeadCompat
 {
     private const string PreferredGuid = "com.github.zehsteam.ToilHead";
 
-    // Regular turret and "Slayer" (minigun) variants, per enemy kind.
-    private static readonly string[] ToilHeadNames = { "SetToilHeadOnServer", "SpawnToilHeadOnServer" };
-    private static readonly string[] MantiToilNames = { "SetMantiToilOnServer", "SetManToilOnServer", "SetMantoilOnServer" };
-    private static readonly string[] ToilSlayerNames = { "SetToilSlayerOnServer" };
-    private static readonly string[] MantiSlayerNames = { "SetMantiSlayerOnServer" };
+    /// <summary>The three enemy kinds ToilHead can turret, keyed by EnemyType.enemyName.</summary>
+    internal enum Kind { None, CoilHead, Manticoil, Masked }
+
+    // Regular-turret and "Slayer" (minigun) method-name candidates per kind.
+    private static readonly string[] CoilHeadNames      = { "SetToilHeadOnServer", "SpawnToilHeadOnServer" };
+    private static readonly string[] CoilSlayerNames    = { "SetToilSlayerOnServer" };
+    private static readonly string[] ManticoilNames     = { "SetMantiToilOnServer", "SetManToilOnServer", "SetMantoilOnServer" };
+    private static readonly string[] MantiSlayerNames   = { "SetMantiSlayerOnServer" };
+    private static readonly string[] MaskedNames        = { "SetToilMaskedOnServer" };
+    private static readonly string[] MaskedSlayerNames  = { "SetSlayerMaskedOnServer" };
 
     private static bool _scanned;
-    private static MethodInfo _toilHead;
-    private static MethodInfo _mantiToil;
-    private static MethodInfo _toilSlayer;
-    private static MethodInfo _mantiSlayer;
+    private static MethodInfo _coilHead, _coilSlayer;
+    private static MethodInfo _manticoil, _mantiSlayer;
+    private static MethodInfo _masked, _maskedSlayer;
 
     public static bool Present { get; private set; }
 
-    public static bool IsEligible(string enemyName) =>
-        enemyName == "Spring" || enemyName == "Manticoil";
+    /// <summary>Maps an enemy's name to the ToilHead kind, or None if unsupported.</summary>
+    public static Kind KindOf(string enemyName) => enemyName switch
+    {
+        "Spring" => Kind.CoilHead,
+        "Manticoil" => Kind.Manticoil,
+        "Masked" => Kind.Masked,
+        _ => Kind.None,
+    };
+
+    public static bool IsEligible(string enemyName) => KindOf(enemyName) != Kind.None;
 
     public static void Scan()
     {
@@ -44,7 +56,7 @@ internal static class ToilHeadCompat
             Assembly assembly = CompatScanner.FindAssembly(info, "ToilHead", out string how);
             if (assembly == null)
             {
-                Plugin.Log.LogInfo("ToilHead not detected — ToilHeadSpawnChance will be ignored.");
+                Plugin.Log.LogInfo("ToilHead not detected — its turret chances will be ignored.");
                 return;
             }
 
@@ -59,22 +71,25 @@ internal static class ToilHeadCompat
                     if (parameters.Length != 1 || !typeof(EnemyAI).IsAssignableFrom(parameters[0].ParameterType))
                         continue;
 
-                    if (_toilHead == null && ToilHeadNames.Contains(method.Name)) _toilHead = method;
-                    else if (_mantiToil == null && MantiToilNames.Contains(method.Name)) _mantiToil = method;
-                    else if (_toilSlayer == null && ToilSlayerNames.Contains(method.Name)) _toilSlayer = method;
+                    if (_coilHead == null && CoilHeadNames.Contains(method.Name)) _coilHead = method;
+                    else if (_coilSlayer == null && CoilSlayerNames.Contains(method.Name)) _coilSlayer = method;
+                    else if (_manticoil == null && ManticoilNames.Contains(method.Name)) _manticoil = method;
                     else if (_mantiSlayer == null && MantiSlayerNames.Contains(method.Name)) _mantiSlayer = method;
+                    else if (_masked == null && MaskedNames.Contains(method.Name)) _masked = method;
+                    else if (_maskedSlayer == null && MaskedSlayerNames.Contains(method.Name)) _maskedSlayer = method;
                 }
             }
 
             Plugin.Log.LogInfo(
                 $"ToilHead detected (assembly via {how}, v{info?.Metadata?.Version?.ToString() ?? "?"}). " +
-                $"Hooks — Coil-Head: {Describe(_toilHead)}, Manticoil: {Describe(_mantiToil)}, " +
-                $"Slayer: {Describe(_toilSlayer)}/{Describe(_mantiSlayer)}.");
+                $"Hooks — Coil-Head: {Describe(_coilHead)}/{Describe(_coilSlayer)}, " +
+                $"Manticoil: {Describe(_manticoil)}/{Describe(_mantiSlayer)}, " +
+                $"Masked: {Describe(_masked)}/{Describe(_maskedSlayer)}.");
 
-            if (_toilHead == null && _mantiToil == null)
+            if (_coilHead == null && _manticoil == null && _masked == null)
                 Plugin.Log.LogWarning(
-                    "ToilHead is installed but no compatible attach method was found — " +
-                    "the turret integration will be inactive. Please report your ToilHead version.");
+                    "ToilHead is installed but no compatible attach method was found — the turret " +
+                    "integration will be inactive. Please report your ToilHead version.");
         }
         catch (Exception e)
         {
@@ -88,10 +103,11 @@ internal static class ToilHeadCompat
         if (enemy == null || enemy.enemyType == null)
             return false;
 
-        MethodInfo method = enemy.enemyType.enemyName switch
+        MethodInfo method = KindOf(enemy.enemyType.enemyName) switch
         {
-            "Spring" => slayer ? (_toilSlayer ?? _toilHead) : _toilHead,
-            "Manticoil" => slayer ? (_mantiSlayer ?? _mantiToil) : _mantiToil,
+            Kind.CoilHead => slayer ? (_coilSlayer ?? _coilHead) : _coilHead,
+            Kind.Manticoil => slayer ? (_mantiSlayer ?? _manticoil) : _manticoil,
+            Kind.Masked => slayer ? (_maskedSlayer ?? _masked) : _masked,
             _ => null,
         };
         if (method == null)

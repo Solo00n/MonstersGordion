@@ -135,7 +135,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             $"Company spawner active: cap={cfg.GlobalCap.Value}, " +
             $"interval=[{cfg.MinSpawnInterval.Value:F0}s..{cfg.MaxSpawnInterval.Value:F0}s], " +
             $"outsideAIMode={cfg.TreatEnemiesAsOutside.Value}, foreignEnemies={cfg.ForeignEnemies.Value}, " +
-            $"ToilHead={(ToilHeadCompat.Present ? $"{cfg.ToilHeadSpawnChance.Value}%" : "absent")}, " +
+            $"ToilHead={(ToilHeadCompat.Present ? $"Coil {cfg.CoilHeadTurretChance.Value}% / Manti {cfg.ManticoilTurretChance.Value}% / Masked {cfg.MaskedTurretChance.Value}%" : "absent")}, " +
             $"StarlancerAIFix={(StarlancerCompat.Present ? "present" : "absent")}, " +
             $"BCME={(BcmeCompat.Present ? "present" : "absent")}.");
     }
@@ -649,22 +649,23 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
 
         ApplyInteriorAI(ai);
 
-        // ToilHead: chance to put a turret on Coil-Heads and Manticoils.
+        // ToilHead: per-enemy chance to put a turret on Coil-Head / Manticoil / Masked.
         string name = ai.enemyType != null ? ai.enemyType.enemyName : string.Empty;
-        if (ToilHeadCompat.Present && ToilHeadCompat.IsEligible(name))
+        var kind = ToilHeadCompat.KindOf(name);
+        if (ToilHeadCompat.Present && kind != ToilHeadCompat.Kind.None)
         {
+            int chance = Plugin.Cfg.ToilHeadTurretChance(kind);
             int roll = UnityEngine.Random.Range(0, 100);
-            if (roll < Plugin.Cfg.ToilHeadSpawnChance.Value)
+            if (roll < chance)
             {
-                bool slayer = UnityEngine.Random.Range(0, 100) < Plugin.Cfg.ToilSlayerChance.Value;
+                bool slayer = UnityEngine.Random.Range(0, 100) < Plugin.Cfg.ToilHeadSlayerChance(kind);
                 bool ok = ToilHeadCompat.TryApply(ai, slayer);
-                Plugin.DebugLog($"ToilHead roll {roll} < {Plugin.Cfg.ToilHeadSpawnChance.Value} " +
-                                $"for '{name}' (slayer={slayer}): " +
-                                $"{(ok ? "turret attached" : "attach FAILED — see warnings above")}.");
+                Plugin.DebugLog($"ToilHead: '{name}' rolled {roll} < {chance} (slayer={slayer}) — " +
+                                $"{(ok ? "turret attached" : "attach FAILED, see warnings above")}.");
             }
             else
             {
-                Plugin.DebugLog($"ToilHead roll {roll} >= {Plugin.Cfg.ToilHeadSpawnChance.Value} for '{name}' — plain spawn.");
+                Plugin.DebugLog($"ToilHead: '{name}' rolled {roll} >= {chance} — plain spawn.");
             }
         }
     }

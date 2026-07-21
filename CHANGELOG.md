@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.0
+
+- **Per-enemy ToilHead settings for every turret-capable enemy.** ToilHead can put
+  a turret on three enemies — Coil-Head, Manticoil and **Masked** — and each has a
+  regular and a Slayer (minigun) variant. Previously only Coil-Head and Manticoil
+  shared a single chance and Masked could not be configured at all. The old
+  `[Integration] ToilHeadSpawnChance` / `ToilSlayerChance` are replaced by a
+  `[ToilHead]` section: `CoilHeadTurretChance`/`CoilHeadSlayerChance`,
+  `ManticoilTurretChance`/`ManticoilSlayerChance`, `MaskedTurretChance`/`MaskedSlayerChance`.
+  Masked support was added to the reflection bindings (`SetToilMaskedOnServer` /
+  `SetSlayerMaskedOnServer`).
+
 ## 1.1.1
 
 - **Giant Kiwi enabled by default** — confirmed working: it is nest-requiring and
