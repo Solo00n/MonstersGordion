@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.1.0
+
+First stable release. Bundles every fix from the 1.0.x line and ships a curated
+default roster of enemies that work correctly inside the Company building.
+
+- **Enabled by default:** all interior enemies plus Stingray and Tulip Snake, and
+  the outdoor threats that path fine indoors — Baboon Hawk, Eyeless Dog, Forest
+  Keeper and Old Bird (the Old Bird has its nest placed automatically and is
+  locked to the upper floor).
+- **Disabled by default** (they don't work correctly on Gordion yet, but remain in
+  the config/code and on the `experimental` git branch): Feiopar, Cadaver Growths,
+  Cadaver Bloom, Bush Wolf, Earth Leviathan, Giant Kiwi, Manticoil and the bees.
+  The experimental `FeioparFakeTrees` also defaults off.
+- Includes: enemy targeting fix (`TreatEnemiesAsOutside`), reachability-checked
+  spawns with upper/lower floor balance, whitelist mode, per-mod foreign-enemy
+  policy, automatic nest placement for nest-requiring enemies, the maintenance
+  pass (AI re-apply, stranded-enemy rescue, idle-stalker nudge), auto-disable of
+  types that keep dying instantly, and full spawnability logging.
+
 ## 1.0.12
 
 - **Diagnostic for the vain-shroud hook.** `RoundManager.LoadNewLevel` is patched to

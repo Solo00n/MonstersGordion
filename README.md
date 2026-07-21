@@ -66,14 +66,18 @@ require a game restart (standard BepInEx behaviour).
 | General | DebugMode | false | verbose spawn logging |
 | Balance | UpperFloorSpawnShare | 70 | % of spawns at ship-landing level (rest → basement) |
 | Balance | OutsideEnemyShare | 50 | % chance to pick from outdoor enemy types |
+| Balance | OldBirdUpperFloorOnly | true | spawn the Old Bird only on the upper floor |
 | Integration | ToilHeadSpawnChance | 25 | % turret chance for Coil-Head/Manticoil |
 | Integration | ToilSlayerChance | 0 | % of those turrets that are the Slayer variant |
+| Integration | VainShroudIterations | 0 | grow weeds for Bush Wolf (0 = auto; experimental) |
+| Integration | FeioparFakeTrees | false | fabricate trees so Feiopar can stalk (experimental) |
 | Advanced | DespawnOnShipLeave | true | remove this mod's enemies when leaving |
 | Advanced | CountForeignEnemies | true | other mods' enemies count toward caps |
 | Advanced | MinDistanceFromPlayers | 12 | min spawn distance to players, meters |
 | Advanced | AINodeCount | 20 | generated interior patrol nodes |
 | Advanced | RequireIndoorPoints | true | require a ceiling above spawn points |
-| Advanced | ExcludedEnemies | (empty) | extra comma-separated exclusions |
+| Advanced | ExcludedEnemies | (empty) | comma-separated blacklist (or whitelist, see below) |
+| Advanced | ExcludedEnemiesIsWhitelist | false | flip the list into an allow-list |
 | Advanced | TreatEnemiesAsOutside | true | required for enemies to be able to target players (see below) |
 | Advanced | MaintenanceInterval | 3 | seconds between AI re-apply / rescue / cleanup passes |
 | Advanced | ForeignEnemies | RemoveExcluded | apply the blacklist to enemies spawned by other mods |
@@ -87,22 +91,30 @@ enemies or `PlayerIsTargetable` — and with it every chase and every
 collision kill — silently fails. The mod still assigns interior patrol nodes,
 so enemies stay in the building. Only turn this off for debugging.
 
-### Enemies with map requirements
+### Which enemies are enabled by default
 
-- **Bush Wolf** (Kidnapper Fox) despawns itself on spawn if the moon has no vain
-  shrouds. Enable it and the mod grows weeds for you — it sets the level's own
-  `moldSpreadIterations`, so the game generates and network-syncs them exactly
-  like on any other moon. Tune the amount with `[Integration]
-  VainShroudIterations`. Weeds are grown at level load, so enable it *before*
-  flying to Gordion.
-- **Cadaver Bloom** spawns as a dormant, invisible seed by design — it is planted
-  and woken by **Cadaver Growths**. Enable `Cadaver Growths` instead.
-- **Feiopar** (PumaAI) normally stalks from trees and falls back to ground
-  stalking indoors. **Earth Leviathan** burrows through terrain and looks wrong
-  inside a building; both are playable but imperfect.
+**Enabled — work well:** all interior enemies (Bracken, Thumper, Hoarding Bug,
+Snare Flea, Bunker Spider, Coil-Head, Ghost Girl, Spore Lizard, Nutcracker,
+Jester, Masked, Hygrodere, Butler, Barber, Maneater), plus **Stingray** and
+**Tulip Snake**, and the outdoor threats that path fine indoors — **Baboon Hawk,
+Eyeless Dog, Forest Keeper and Old Bird** (the Old Bird gets its nest placed
+automatically and is locked to the upper floor).
 
-Whatever the cause, every landing writes a spawnability report to the log naming
-each enemy, its AI class and why it will or will not spawn.
+**Disabled by default — do NOT work correctly on Gordion yet** (kept in the
+config and code, toggleable, and preserved on the `experimental` git branch):
+
+- **Feiopar** (PumaAI) stalks only from trees; without them it just idles. The
+  experimental `[Integration] FeioparFakeTrees` fabricates trees but it parks near
+  the ceiling — off by default.
+- **Cadaver Growths** requires a dungeon (`Found no dungeon`) and self-destructs;
+  **Cadaver Bloom** is a dormant seed the Growth would plant.
+- **Bush Wolf** (Kidnapper Fox) needs vain shrouds, which do not currently grow on
+  the Company moon (see `[Integration] VainShroudIterations`).
+- **Earth Leviathan** burrows through terrain; **Giant Kiwi** is unconfirmed indoors.
+
+Every landing writes a spawnability report to the log naming each enemy, its AI
+class and why it will or will not spawn, and the mod auto-disables any type that
+keeps dying within seconds of spawning so it is never spammed.
 
 Per-enemy sections: `[Enemy.Flowerman]`, `[Enemy.Bunker Spider]`, … with
 `Enabled`, `SpawnWeight`, `MinSpawnCount`, `MaxSpawnCount`. Defaults: interior

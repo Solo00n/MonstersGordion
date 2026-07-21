@@ -98,31 +98,30 @@ internal sealed class PluginConfig
             ["Maneater"]           = (true,  4, 0, 1),
             ["CaveDweller"]        = (true,  4, 0, 1), // Maneater internal name in some builds
             ["Stingray"]           = (true,  8, 0, 2), // v81, hides on ceilings
-            ["Feiopar"]            = (true,  6, 0, 1), // v81 PumaAI — stalks, normally from trees
-            // v81 Cadaver pair. Both are disabled by default: CadaverGrowthAI is a
-            // map-wide master that requires a dungeon ("Found no dungeon") and
-            // self-destructs on Gordion, and a lone Bloom is a dormant seed the
-            // Growth would normally plant. Kept in the config for completeness.
-            ["Cadaver Growths"]    = (false, 4, 0, 1),
-            ["Cadaver Bloom"]      = (false, 4, 0, 2),
-            // Docile daytime critters.
-            // Manticoil is disabled by default: it behaves erratically on the
-            // Company moon. Enable it manually if you want it (ToilHead's
-            // "Manti-Toil" integration still applies when enabled).
-            ["Manticoil"]          = (false, 10, 0, 3),
             ["Tulip Snake"]        = (true, 10, 0, 3),
             ["Flowersnake"]        = (true, 10, 0, 3), // Tulip Snake internal name in some builds
-            // Outdoor enemies — present in the config but disabled by default;
-            // they path on the interior navmesh but look/behave oddly indoors.
-            ["Baboon hawk"]        = (false, 8, 0, 2),
-            ["MouthDog"]           = (false, 5, 0, 1), // Eyeless Dog
-            ["ForestGiant"]        = (false, 3, 0, 1), // Forest Keeper
-            ["Earth Leviathan"]    = (false, 2, 0, 1), // burrows through terrain — broken indoors
-            ["RadMech"]            = (false, 2, 0, 1), // Old Bird
-            ["Old Bird"]           = (false, 2, 0, 1),
+
+            // Outdoor enemies that path fine on the interior navmesh and can
+            // target players (isOutside handling) — enabled at modest weights so
+            // the building gets some big threats too. Old Bird gets its nest
+            // placed automatically and is locked to the upper floor by default.
+            ["Baboon hawk"]        = (true,  8, 0, 2),
+            ["MouthDog"]           = (true,  5, 0, 1), // Eyeless Dog
+            ["ForestGiant"]        = (true,  3, 0, 1), // Forest Keeper
+            ["RadMech"]            = (true,  3, 0, 1), // Old Bird
+            ["Old Bird"]           = (true,  3, 0, 1),
+
+            // ---- Disabled by default: do NOT work correctly on Gordion yet. ----
+            // Kept in the config (and code) so they can be re-enabled for testing;
+            // tracked on the 'experimental' branch. See the README.
+            ["Feiopar"]            = (false, 6, 0, 1), // PumaAI needs trees; idles without them
+            ["Cadaver Growths"]    = (false, 4, 0, 1), // needs a dungeon ("Found no dungeon")
+            ["Cadaver Bloom"]      = (false, 4, 0, 2), // dormant seed planted by the Growth
             ["Bush Wolf"]          = (false, 6, 0, 1), // Kidnapper Fox — needs vain shrouds
-            ["GiantKiwi"]          = (false, 4, 0, 1), // v81, large outdoor bird
-            ["Red Locust Bees"]    = (false, 5, 0, 1), // needs a hive to behave properly
+            ["Earth Leviathan"]    = (false, 2, 0, 1), // burrows through terrain — broken indoors
+            ["GiantKiwi"]          = (false, 4, 0, 1), // v81 outdoor bird — unconfirmed indoors
+            ["Manticoil"]          = (false, 10, 0, 3), // behaves erratically here
+            ["Red Locust Bees"]    = (false, 5, 0, 1), // needs a hive
             ["Docile Locust Bees"] = (false, 5, 0, 2),
             ["Butler Bees"]        = (false, 3, 0, 1), // normally spawned from a dead Butler
         };
@@ -188,7 +187,7 @@ internal sealed class PluginConfig
                 "only when Bush Wolf is enabled (12 iterations). Higher = more overgrowth.",
                 new AcceptableValueRange<int>(0, 40)));
 
-        FeioparFakeTrees = file.Bind("Integration", "FeioparFakeTrees", true,
+        FeioparFakeTrees = file.Bind("Integration", "FeioparFakeTrees", false,
             "EXPERIMENTAL. Feiopar (PumaAI) only stalks players from trees tagged 'Tree'; the " +
             "Company building has none, so without this it just stands still. When enabled, the mod " +
             "fabricates fake tree nodes on the interior navmesh (with the overhead collider the game " +
