@@ -39,11 +39,13 @@ internal sealed class PluginConfig
     // [Balance]
     public readonly ConfigEntry<int> UpperFloorSpawnShare;
     public readonly ConfigEntry<int> OutsideEnemyShare;
+    public readonly ConfigEntry<bool> OldBirdUpperFloorOnly;
 
     // [Integration]
     public readonly ConfigEntry<int> ToilHeadSpawnChance;
     public readonly ConfigEntry<int> ToilSlayerChance;
     public readonly ConfigEntry<int> VainShroudIterations;
+    public readonly ConfigEntry<bool> FeioparFakeTrees;
 
     /// <summary>Iterations to actually use, resolving the "0 = automatic" default.</summary>
     public int ResolveVainShroudIterations()
@@ -164,6 +166,11 @@ internal sealed class PluginConfig
                 "you enabled; if the rolled pool is empty the other one is used. 50 = even split.",
                 new AcceptableValueRange<int>(0, 100)));
 
+        OldBirdUpperFloorOnly = file.Bind("Balance", "OldBirdUpperFloorOnly", true,
+            "Spawn the Old Bird (RadMech) only on the upper floor (ship-landing level), ignoring " +
+            "UpperFloorSpawnShare for it. The Old Bird is huge and the basement is cramped, so it " +
+            "moves and fights much better upstairs.");
+
         ToilHeadSpawnChance = file.Bind("Integration", "ToilHeadSpawnChance", 25,
             new ConfigDescription(
                 "Percent chance (0-100) that a spawned Coil-Head or Manticoil gets a turret " +
@@ -178,6 +185,13 @@ internal sealed class PluginConfig
                 "itself on spawn when there is nothing to hide in. 0 = automatic: weeds are grown " +
                 "only when Bush Wolf is enabled (12 iterations). Higher = more overgrowth.",
                 new AcceptableValueRange<int>(0, 40)));
+
+        FeioparFakeTrees = file.Bind("Integration", "FeioparFakeTrees", true,
+            "EXPERIMENTAL. Feiopar (PumaAI) only stalks players from trees tagged 'Tree'; the " +
+            "Company building has none, so without this it just stands still. When enabled, the mod " +
+            "fabricates fake tree nodes on the interior navmesh (with the overhead collider the game " +
+            "checks for) so Feiopar can stalk and pounce. It may perch oddly near the ceiling — " +
+            "turn this off if it looks broken. Ignored when Feiopar is disabled or absent.");
 
         ToilSlayerChance = file.Bind("Integration", "ToilSlayerChance", 0,
             new ConfigDescription(

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using MonstersGordion.Compat;
 using Unity.Netcode;
 using UnityEngine;
@@ -19,6 +20,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     internal static CompanyMonsterSpawner Instance { get; private set; }
 
     private readonly List<GameObject> _aiNodes = new();
+    private readonly List<GameObject> _fakeTrees = new();
     private readonly List<EnemyAI> _ownedEnemies = new();
     private readonly List<GameObject> _ownedNests = new();
     private readonly Dictionary<int, float> _spawnTimes = new();
@@ -113,6 +115,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         _hasVainShrouds = CheckVainShrouds();
 
         CreateAINodes(cfg.AINodeCount.Value);
+        CreateFakeTreesIfNeeded();
         _loop = StartCoroutine(SpawnLoop());
         _maintenance = StartCoroutine(MaintenanceLoop());
         Plugin.Log.LogInfo(
@@ -157,6 +160,10 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             if (node != null)
                 Destroy(node);
         _aiNodes.Clear();
+        foreach (var tree in _fakeTrees)
+            if (tree != null)
+                Destroy(tree);
+        _fakeTrees.Clear();
         _ownedEnemies.Clear();
 
         Instance = null;
@@ -269,7 +276,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             $"total alive {aliveTotal}/{cfg.GlobalCap.Value}).");
 
         Vector3? point = _sampler.GetRandomPoint(
-            cfg.MinDistanceFromPlayers.Value, 12, cfg.UpperFloorSpawnShare.Value);
+            cfg.MinDistanceFromPlayers.Value, 12, UpperShareFor(picked.type));
         if (point == null)
         {
             Plugin.Log.LogWarning(
@@ -426,6 +433,17 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             return false;
         }
         return true;
+    }
+
+    /// <summary>Percentage of upper-floor spawns to use for a given type.</summary>
+    private static int UpperShareFor(EnemyType type)
+    {
+        if (Plugin.Cfg.OldBirdUpperFloorOnly.Value
+            && string.Equals(type.enemyName, "RadMech", StringComparison.OrdinalIgnoreCase))
+        {
+            return 100; // Old Bird: upper floor only.
+        }
+        return Plugin.Cfg.UpperFloorSpawnShare.Value;
     }
 
     private static (EnemyType type, EnemySpawnSettings s, int alive) WeightedPick(
@@ -794,6 +812,95 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         try { node.tag = tagName; }
         catch (Exception e) { Plugin.DebugLog($"Could not tag AI node '{tagName}': {e.Message}"); }
         return node;
+    }
+
+    // ---------------------------------------------------------------- fake trees
+
+    // Layer index PumaAI.Start() looks for when validating a tree: it does
+    // Physics.CheckSphere(treePos + up*16, 15, 1<<25) with the tree itself
+    // deactivated, i.e. it wants some *other* geometry (a canopy) on layer 25
+    // near the treetop. We satisfy that with a separate collider on layer 25.
+    private const int TreeCanopyLayer = 25;
+    private const int FakeTreeCount = 12;
+
+    /// <summary>
+    /// Feiopar (PumaAI) only stalks from objects tagged "Tree"; the Company
+    /// building has none, so it stands idle (ChooseTargetTree finds nothing and
+    /// it never sets a destination). Experimental fix: fabricate tree nodes on
+    /// the interior navmesh, each paired with a canopy collider so PumaAI's
+    /// validation accepts them. Off by default is respected via the config flag.
+    /// </summary>
+    private void CreateFakeTreesIfNeeded()
+    {
+        if (!Plugin.Cfg.FeioparFakeTrees.Value)
+            return;
+
+        var feiopar = EnemyCatalog.Enemies.FirstOrDefault(
+            e => string.Equals(e.enemyName, "Feiopar", StringComparison.OrdinalIgnoreCase));
+        if (feiopar == null)
+            return;
+        if (!Plugin.Cfg.For(feiopar).Enabled.Value)
+        {
+            Plugin.DebugLog("Feiopar disabled — skipping fake tree generation.");
+            return;
+        }
+
+        int created = 0;
+        for (int i = 0; i < FakeTreeCount; i++)
+        {
+            Vector3? point = _sampler.GetRandomPoint(0f, 15, 50);
+            if (point == null)
+                continue;
+
+            // The tree node itself, tagged "Tree".
+            var tree = CreateNode($"MG_FakeTree_{i}", point.Value, "Tree");
+            _fakeTrees.Add(tree);
+
+            // Canopy collider — a SIBLING (not a child) so it stays active while
+            // PumaAI deactivates the tree during its CheckSphere validation.
+            var canopy = new GameObject($"MG_FakeTreeCanopy_{i}") { layer = TreeCanopyLayer };
+            canopy.transform.SetParent(transform, worldPositionStays: false);
+            canopy.transform.position = point.Value + Vector3.up * 12f;
+            var col = canopy.AddComponent<SphereCollider>();
+            col.radius = 1f;
+            col.isTrigger = false;
+            _fakeTrees.Add(canopy);
+            created++;
+        }
+
+        // PumaAI caches tree nodes in a static list on first spawn and never
+        // rebuilds while it is non-empty; clear it so it discovers ours (and so
+        // stale entries from a previous moon do not shadow them).
+        ResetPumaTreeCache(feiopar);
+
+        Plugin.Log.LogInfo(
+            $"Feiopar fake trees: created {created} (EXPERIMENTAL — it may perch oddly near the " +
+            "ceiling; set [Integration] FeioparFakeTrees=false to disable).");
+    }
+
+    private static void ResetPumaTreeCache(EnemyType feiopar)
+    {
+        try
+        {
+            var ai = feiopar.enemyPrefab != null
+                ? feiopar.enemyPrefab.GetComponentInChildren<EnemyAI>(includeInactive: true)
+                : null;
+            Type pumaType = ai?.GetType();
+            var field = pumaType?.GetField("AllTreeNodes", BindingFlags.Public | BindingFlags.Static);
+            if (field != null)
+            {
+                field.SetValue(null, null);
+                Plugin.DebugLog($"Reset {pumaType.Name}.AllTreeNodes so it rebuilds from our fake trees.");
+            }
+            else
+            {
+                Plugin.DebugLog("Could not find PumaAI.AllTreeNodes to reset (field renamed?).");
+            }
+        }
+        catch (Exception e)
+        {
+            Plugin.DebugLog($"ResetPumaTreeCache failed: {e.Message}");
+        }
     }
 
     // ---------------------------------------------------------------- despawning

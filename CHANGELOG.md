@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.9
+
+- **Old Bird upper-floor lock.** New `[Balance] OldBirdUpperFloorOnly` (default true):
+  the Old Bird (RadMech) spawns only on the ship-landing level, ignoring
+  `UpperFloorSpawnShare`. It is huge and the basement is cramped, so it fights far
+  better upstairs.
+- **Feiopar (PumaAI) can stalk again — experimental.** PumaAI only stalks from
+  objects tagged `Tree`; the Company building has none, so `ChooseTargetTree` finds
+  nothing and Feiopar never sets a destination (it just stands there). New
+  `[Integration] FeioparFakeTrees` (default true) fabricates tree nodes on the
+  interior navmesh, each with the overhead canopy collider (layer 25) that
+  `PumaAI.Start` validates against, and clears PumaAI's static tree cache so it
+  adopts them. It may perch oddly near the ceiling — set the flag to false if it
+  looks broken.
+
 ## 1.0.8
 
 - **Corrected the nest attribution.** The nest-requiring enemy in vanilla v81 is
