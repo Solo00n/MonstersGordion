@@ -5,7 +5,7 @@
     <AssemblyName>MonstersGordion</AssemblyName>
     <RootNamespace>MonstersGordion</RootNamespace>
     <Product>MonstersGordion</Product>
-    <Version>1.2.0</Version>
+    <Version>1.2.1</Version>
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -13,7 +13,7 @@
     <!-- BepInEx.PluginInfoProps generates MyPluginInfo from these -->
     <BepInExPluginGuid>Timofey.MonstersGordion</BepInExPluginGuid>
     <BepInExPluginName>MonstersGordion</BepInExPluginName>
-    <BepInExPluginVersion>1.2.0</BepInExPluginVersion>
+    <BepInExPluginVersion>1.2.1</BepInExPluginVersion>
   </PropertyGroup>
 
   <ItemGroup>

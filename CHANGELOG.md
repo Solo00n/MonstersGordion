@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.1
+
+- New icon: a red bestiary-scan look (dark red scanlines, vignette, corner
+  viewfinder brackets, blood glow). No code changes — republished so the store
+  page shows the new artwork.
+
 ## 1.2.0
 
 - **Per-enemy ToilHead settings for every turret-capable enemy.** ToilHead can put
