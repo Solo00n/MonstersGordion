@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.12
+
+- **Diagnostic for the vain-shroud hook.** `RoundManager.LoadNewLevel` is patched to
+  grow weeds, but its log never appeared — the hook may be bypassed (LethalLevelLoader
+  reworks level loading) or bail on the level check. The prefix now logs unconditionally
+  at entry (planet, scene, levelID, isCompany) so the next landing shows exactly whether
+  it fires and why weed generation is or isn't happening.
+
 ## 1.0.11
 
 - **No more spawn spam from enemies that can't survive here.** Some enemies destroy

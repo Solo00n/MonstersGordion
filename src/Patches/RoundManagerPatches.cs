@@ -23,7 +23,14 @@ internal static class RoundManagerPatches
     {
         try
         {
-            if (newLevel == null || !IsCompanyLevel(newLevel))
+            // Unconditional diagnostic: confirms whether this hook fires at all
+            // (LethalLevelLoader reworks level loading) and what level it sees.
+            bool isCompany = newLevel != null && IsCompanyLevel(newLevel);
+            Plugin.Log.LogInfo(
+                $"LoadNewLevel hook fired: planet='{newLevel?.PlanetName}', scene='{newLevel?.sceneName}', " +
+                $"levelID={newLevel?.levelID}, isCompany={isCompany}.");
+
+            if (!isCompany)
                 return;
 
             int iterations = Plugin.Cfg.ResolveVainShroudIterations();
