@@ -217,11 +217,13 @@ internal sealed class PluginConfig
 
         VainShroudIterations = file.Bind("Integration", "VainShroudIterations", 0,
             new ConfigDescription(
-                "Grows vain shrouds (weeds) on the Company moon by setting the level's own " +
-                "moldSpreadIterations, so the game generates and network-syncs them exactly like " +
-                "on any other moon. Required by the Kidnapper Fox (Bush Wolf), which despawns " +
-                "itself on spawn when there is nothing to hide in. 0 = automatic: weeds are grown " +
-                "only when Bush Wolf is enabled (12 iterations). Higher = more overgrowth.",
+                "Grows vain shrouds (weeds) on the Company moon so the Kidnapper Fox (Bush Wolf) has " +
+                "somewhere to hide instead of despawning itself. The mod flips Gordion's canSpawnMold " +
+                "flag and sets its moldSpreadIterations in StartOfRound.LoadPlanetsMoldSpreadData (the " +
+                "same hook FoxLover uses), and the vanilla pipeline then generates and network-syncs " +
+                "the weeds on landing. Applied at save load, so set this and reload the save / fly " +
+                "fresh. 0 = automatic: weeds grow only when Bush Wolf is enabled (12 iterations). " +
+                "Higher = more overgrowth.",
                 new AcceptableValueRange<int>(0, 40)));
 
         FeioparFakeTrees = file.Bind("Integration", "FeioparFakeTrees", false,

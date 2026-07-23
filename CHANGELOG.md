@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.0
+
+- **Vain shrouds now actually grow on Gordion**, so the Kidnapper Fox (Bush Wolf)
+  can hide and survive. Replaced the old `RoundManager.LoadNewLevel` hook (which
+  LethalLevelLoader bypassed, so it never fired) with a postfix on
+  `StartOfRound.LoadPlanetsMoldSpreadData` — the canonical, core save-load method
+  where the game decides weed amounts, the same hook the FoxLover mod uses. The
+  Company moon ships with `canSpawnMold = false`; the mod flips it on and seeds
+  `moldSpreadIterations`, then the vanilla pipeline generates and network-syncs the
+  weeds on landing. Controlled by `[Integration] VainShroudIterations` (0 = auto,
+  grows weeds only when Bush Wolf is enabled). Set it and reload the save / fly
+  fresh — weeds are decided at save load, not mid-round.
+- Original implementation written from the decompiled game API; credit to
+  ButteryStancakes' FoxLover (GPL) for demonstrating the hook. No FoxLover code
+  is included.
+
 ## 1.2.1
 
 - New icon: a red bestiary-scan look (dark red scanlines, vignette, corner

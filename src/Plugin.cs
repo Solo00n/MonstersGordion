@@ -33,7 +33,7 @@ public class Plugin : BaseUnityPlugin
         _harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
         _harmony.PatchAll(typeof(StartOfRoundPatches));
         _harmony.PatchAll(typeof(EnemyAIPatches));
-        _harmony.PatchAll(typeof(RoundManagerPatches));
+        _harmony.PatchAll(typeof(MoldSpreadPatches));
 
         LandingWatcher.Create();
 

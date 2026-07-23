@@ -110,8 +110,13 @@ config and code, toggleable, and preserved on the `experimental` git branch):
   the ceiling — off by default.
 - **Cadaver Growths** requires a dungeon (`Found no dungeon`) and self-destructs;
   **Cadaver Bloom** is a dormant seed the Growth would plant.
-- **Bush Wolf** (Kidnapper Fox) needs vain shrouds, which do not currently grow on
-  the Company moon (see `[Integration] VainShroudIterations`).
+- **Bush Wolf** (Kidnapper Fox) needs vain shrouds. The mod now grows them on Gordion
+  by flipping the moon's `canSpawnMold` flag and seeding `moldSpreadIterations` in
+  `StartOfRound.LoadPlanetsMoldSpreadData` (the technique used by
+  [FoxLover](https://github.com/ButteryStancakes/FoxLover)); the vanilla pipeline
+  generates and network-syncs the weeds on landing. Enable Bush Wolf and set
+  `[Integration] VainShroudIterations` (0 = auto when the Fox is on), then reload
+  the save or fly fresh — weeds are decided at save load, not mid-round.
 - **Earth Leviathan** burrows through terrain and looks wrong inside a building.
 
 Every landing writes a spawnability report to the log naming each enemy, its AI

@@ -22,9 +22,9 @@ internal static class EnemyCatalog
         new(StringComparer.OrdinalIgnoreCase)
         {
             ["Bush Wolf"] =
-                "BushWolfEnemy needs vain shrouds to hide in and despawns itself on spawn without " +
-                "them. Set [Integration] VainShroudIterations (or just leave it at 0 — enabling " +
-                "Bush Wolf grows weeds automatically)",
+                "BushWolfEnemy needs vain shrouds to hide in. The mod now grows them on Gordion at " +
+                "save load (see [Integration] VainShroudIterations), so enable Bush Wolf and reload " +
+                "the save / fly fresh — enabling it mid-round is too late for weed generation",
             ["Cadaver Growths"] =
                 "CadaverGrowthAI is a map-wide master that requires a dungeon; on Gordion it logs " +
                 "'Found no dungeon' and self-destructs. It cannot work here and the mod auto-disables " +
