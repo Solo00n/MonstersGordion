@@ -459,35 +459,52 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
                 Plugin.DebugLog($"Could not reset finishedGeneratingMold: {e.Message}");
             }
 
-            // GenerateMold reads the current level's mold fields as it works.
+            var flagField = typeof(MoldSpreadManager)
+                .GetField("finishedGeneratingMold", BindingFlags.NonPublic | BindingFlags.Instance);
             var level = StartOfRound.Instance != null ? StartOfRound.Instance.currentLevel : null;
-            if (level != null)
+
+            int patches = Mathf.Max(1, Plugin.Cfg.VainShroudPatches.Value);
+            var origins = new List<string>();
+
+            for (int i = 0; i < patches; i++)
             {
-                level.canSpawnMold = true;
-                level.moldSpreadIterations = iterations;
-                level.moldStartPosition = -1;
+                // GenerateMold seeds its spread from the starting position and marks
+                // itself finished, so re-clear the flag and feed it a fresh random
+                // origin — that is what makes the nest land somewhere new each time.
+                try { flagField?.SetValue(mold, false); }
+                catch (Exception e) { Plugin.DebugLog($"Could not reset finishedGeneratingMold: {e.Message}"); }
+
+                if (level != null)
+                {
+                    level.canSpawnMold = true;
+                    level.moldSpreadIterations = iterations;
+                    level.moldStartPosition = -1;
+                }
+
+                Vector3? start = PickVainShroudOrigin();
+                if (start == null)
+                {
+                    Plugin.DebugLog("No free interior point left for another weed patch.");
+                    break;
+                }
+
+                mold.GenerateMold(start.Value, iterations);
+                origins.Add(start.Value.ToString("F1"));
             }
 
-            // Spread from inside the building so the weeds (and the Fox hiding in
-            // them) end up where the players actually are.
-            Vector3 start = _sampler?.Anchor
-                ?? _sampler?.GetRandomPoint(0f, 10, 50)
-                ?? (StartOfRound.Instance != null ? StartOfRound.Instance.shipLandingPosition.position : Vector3.zero);
-
-            mold.GenerateMold(start, iterations);
-
             bool grown = mold.GetWeeds();
+            string where = origins.Count > 0 ? string.Join(", ", origins) : "nowhere";
             if (grown)
             {
                 Plugin.Log.LogInfo(
-                    $"Vain shrouds grown on Gordion: {iterations} iterations from {start:F1}. " +
-                    "Bush Wolf can now hide and will survive.");
+                    $"Vain shrouds grown on Gordion: {origins.Count} patch(es) x {iterations} iterations " +
+                    $"at {where}. Bush Wolf can now hide and will survive.");
             }
             else
             {
                 Plugin.Log.LogWarning(
-                    $"Tried to grow vain shrouds ({iterations} iterations from {start:F1}) but the game " +
-                    "still reports none — Bush Wolf will be skipped. Try a higher " +
+                    $"Tried to grow vain shrouds ({origins.Count} patch(es) x {iterations} iterations at " +
+                    $"{where}) but the game still reports none — Bush Wolf will be skipped. Try a higher " +
                     "[Integration] VainShroudIterations.");
             }
             return grown;
@@ -497,6 +514,25 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             Plugin.Log.LogError($"Growing vain shrouds failed: {e}");
             return false;
         }
+    }
+
+    /// <summary>
+    /// A fresh random spot on the interior navmesh for a weed patch. Uses the same
+    /// reachability-checked sampler as spawning, with a 50/50 floor split, and keeps
+    /// clear of where players stand at landing.
+    /// </summary>
+    private Vector3? PickVainShroudOrigin()
+    {
+        if (_sampler != null)
+        {
+            Vector3? point = _sampler.GetRandomPoint(Plugin.Cfg.MinDistanceFromPlayers.Value, 12, 50)
+                          ?? _sampler.GetRandomPoint(0f, 12, 50);
+            if (point != null)
+                return point;
+        }
+        return StartOfRound.Instance != null
+            ? StartOfRound.Instance.shipLandingPosition.position
+            : (Vector3?)null;
     }
 
     private static bool CheckVainShrouds()

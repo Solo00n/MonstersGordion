@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.2
+
+- **Vain shrouds no longer grow in the same place every time.** 1.3.1 spread them from
+  the navmesh anchor, which is computed deterministically, so the Fox's nest always
+  landed on the exact same spot. The origin is now a fresh random reachable point on
+  the interior navmesh each landing (50/50 between floors, clear of where players stand
+  when the ship lands). Since `GenerateMold` seeds its spread from that position, the
+  shape of the patch changes too.
+- New `[Integration] VainShroudPatches` (default 1, max 4) grows several separate
+  overgrown areas, each at its own random spot.
+
 ## 1.3.1
 
 - **Vain shrouds are now grown directly, so Bush Wolf finally works.** 1.3.0 seeded

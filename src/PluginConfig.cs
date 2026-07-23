@@ -51,6 +51,7 @@ internal sealed class PluginConfig
 
     // [Integration]
     public readonly ConfigEntry<int> VainShroudIterations;
+    public readonly ConfigEntry<int> VainShroudPatches;
     public readonly ConfigEntry<bool> FeioparFakeTrees;
 
     /// <summary>Turret chance (%) for a ToilHead-eligible enemy, 0 if not one.</summary>
@@ -225,6 +226,13 @@ internal sealed class PluginConfig
                 "fresh. 0 = automatic: weeds grow only when Bush Wolf is enabled (12 iterations). " +
                 "Higher = more overgrowth.",
                 new AcceptableValueRange<int>(0, 40)));
+
+        VainShroudPatches = file.Bind("Integration", "VainShroudPatches", 1,
+            new ConfigDescription(
+                "How many separate weed patches to grow, each at its own random spot on the " +
+                "interior navmesh. The location is re-rolled every landing, so the Fox's nest is " +
+                "never in the same place twice. Raise this for several overgrown areas.",
+                new AcceptableValueRange<int>(1, 4)));
 
         FeioparFakeTrees = file.Bind("Integration", "FeioparFakeTrees", false,
             "EXPERIMENTAL. Feiopar (PumaAI) only stalks players from trees tagged 'Tree'; the " +
