@@ -123,9 +123,17 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             return;
         }
 
-        // Weeds are generated during level load; evaluate once so GetWeeds()
-        // (which logs on every call) is not hit each spawn cycle.
+        // Weeds: normally grown during level load, but LethalLevelLoader reworks
+        // that path so on Gordion it never runs. Grow them here instead — see
+        // GrowVainShrouds. Evaluated once so GetWeeds() (which logs on every
+        // call) is not hit each spawn cycle.
         _hasVainShrouds = CheckVainShrouds();
+        if (!_hasVainShrouds)
+        {
+            int weedIterations = cfg.ResolveVainShroudIterations();
+            if (weedIterations > 0)
+                _hasVainShrouds = GrowVainShrouds(weedIterations);
+        }
 
         CreateAINodes(cfg.AINodeCount.Value);
         CreateFakeTreesIfNeeded();
@@ -411,6 +419,84 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             }
         }
         _ownedNests.Clear();
+    }
+
+    /// <summary>
+    /// Grows vain shrouds by calling MoldSpreadManager.GenerateMold directly.
+    ///
+    /// The vanilla route (level's moldSpreadIterations -> RoundManager's level-load
+    /// coroutine -> GenerateMold) never executes on Gordion in modpacks that use
+    /// LethalLevelLoader: neither our hooks nor the game's own mold logging appear.
+    /// Calling GenerateMold ourselves sidesteps that entirely, and it is
+    /// self-contained — it instantiates the mold props and then runs
+    /// grassInstancer.BatchChildren() + GetBiggestWeedPatch(), which is exactly what
+    /// BushWolfEnemy's GetWeeds() check reads. That is what keeps the Fox alive.
+    ///
+    /// Host-side: only the server decides whether the Fox survives, so this is
+    /// enough for it to work. Other players may not see the weed props themselves.
+    /// </summary>
+    private bool GrowVainShrouds(int iterations)
+    {
+        try
+        {
+            var mold = UnityEngine.Object.FindObjectOfType<MoldSpreadManager>();
+            if (mold == null)
+            {
+                Plugin.Log.LogWarning("Cannot grow vain shrouds: no MoldSpreadManager on this moon.");
+                return false;
+            }
+
+            // GenerateMold returns immediately if it believes it already ran for
+            // this level; clear that private flag so our call actually generates.
+            try
+            {
+                typeof(MoldSpreadManager)
+                    .GetField("finishedGeneratingMold", BindingFlags.NonPublic | BindingFlags.Instance)
+                    ?.SetValue(mold, false);
+            }
+            catch (Exception e)
+            {
+                Plugin.DebugLog($"Could not reset finishedGeneratingMold: {e.Message}");
+            }
+
+            // GenerateMold reads the current level's mold fields as it works.
+            var level = StartOfRound.Instance != null ? StartOfRound.Instance.currentLevel : null;
+            if (level != null)
+            {
+                level.canSpawnMold = true;
+                level.moldSpreadIterations = iterations;
+                level.moldStartPosition = -1;
+            }
+
+            // Spread from inside the building so the weeds (and the Fox hiding in
+            // them) end up where the players actually are.
+            Vector3 start = _sampler?.Anchor
+                ?? _sampler?.GetRandomPoint(0f, 10, 50)
+                ?? (StartOfRound.Instance != null ? StartOfRound.Instance.shipLandingPosition.position : Vector3.zero);
+
+            mold.GenerateMold(start, iterations);
+
+            bool grown = mold.GetWeeds();
+            if (grown)
+            {
+                Plugin.Log.LogInfo(
+                    $"Vain shrouds grown on Gordion: {iterations} iterations from {start:F1}. " +
+                    "Bush Wolf can now hide and will survive.");
+            }
+            else
+            {
+                Plugin.Log.LogWarning(
+                    $"Tried to grow vain shrouds ({iterations} iterations from {start:F1}) but the game " +
+                    "still reports none — Bush Wolf will be skipped. Try a higher " +
+                    "[Integration] VainShroudIterations.");
+            }
+            return grown;
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.LogError($"Growing vain shrouds failed: {e}");
+            return false;
+        }
     }
 
     private static bool CheckVainShrouds()

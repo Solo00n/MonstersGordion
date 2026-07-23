@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.1
+
+- **Vain shrouds are now grown directly, so Bush Wolf finally works.** 1.3.0 seeded
+  the level's `moldSpreadIterations` and relied on the vanilla level-load pipeline to
+  generate the weeds — but in LethalLevelLoader modpacks that pipeline never runs on
+  Gordion (neither our hooks nor the game's own mold logging appear at all). The mod
+  now calls `MoldSpreadManager.GenerateMold` itself on landing. That call is
+  self-contained: it places the mold props and then runs `grassInstancer.BatchChildren()`
+  and `GetBiggestWeedPatch()`, which is exactly what `BushWolfEnemy`'s `GetWeeds()`
+  check reads, so the Fox survives instead of despawning.
+- The `LoadPlanetsMoldSpreadData` hook from 1.3.0 is kept for setups where the vanilla
+  path does work; the direct call is the fallback that makes it reliable here.
+- Weed generation is host-side. The host decides whether the Fox lives, so it works —
+  but other players may not see the weed props themselves.
+
 ## 1.3.0
 
 - **Vain shrouds now actually grow on Gordion**, so the Kidnapper Fox (Bush Wolf)
