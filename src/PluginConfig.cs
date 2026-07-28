@@ -40,7 +40,7 @@ internal sealed class PluginConfig
     public readonly ConfigEntry<int> UpperFloorSpawnShare;
     public readonly ConfigEntry<int> OutsideEnemyShare;
     public readonly ConfigEntry<bool> OldBirdUpperFloorOnly;
-    public readonly ConfigEntry<bool> AllowDaytimeEnemies;
+    public readonly ConfigEntry<bool> AllowHarmlessCreatures;
     public readonly ConfigEntry<bool> EarthLeviathanFloorEmerge;
 
     // [ToilHead] — per-enemy turret chances (only the three ToilHead supports).
@@ -208,10 +208,11 @@ internal sealed class PluginConfig
             "UpperFloorSpawnShare for it. The Old Bird is huge and the basement is cramped, so it " +
             "moves and fights much better upstairs.");
 
-        AllowDaytimeEnemies = file.Bind("Balance", "AllowDaytimeEnemies", true,
-            "Master switch for harmless/ambient daytime creatures (Manticoil, Tulip Snake, " +
-            "Docile Locust Bees). Set false to keep the building free of birds and firefly swarms " +
-            "regardless of their per-enemy Enabled setting.");
+        AllowHarmlessCreatures = file.Bind("Balance", "AllowHarmlessCreatures", true,
+            "Master switch for the genuinely harmless ambient creatures — the Manticoil (bird) and " +
+            "the Roaming/Docile Locust swarm. Set false to keep the building free of just those two, " +
+            "regardless of their per-enemy Enabled setting. (Tulip Snake is not affected — it can " +
+            "grab players and stays in the normal pool.)");
 
         EarthLeviathanFloorEmerge = file.Bind("Balance", "EarthLeviathanFloorEmerge", true,
             "EXPERIMENTAL. Lets the Earth Leviathan (worm) breach up through the Company building " +

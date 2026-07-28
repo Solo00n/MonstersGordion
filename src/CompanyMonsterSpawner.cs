@@ -257,8 +257,8 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             var s = Plugin.Cfg.For(type);
             if (!s.Enabled.Value || s.SpawnWeight.Value <= 0 || s.MaxSpawnCount.Value <= 0)
                 continue;
-            if (!cfg.AllowDaytimeEnemies.Value && IsDaytimeCreature(type))
-                continue; // harmless ambient birds/swarms turned off as a group
+            if (!cfg.AllowHarmlessCreatures.Value && IsHarmlessCreature(type))
+                continue; // Manticoil + Roaming Locust turned off as a group
             if (_disabledThisLanding.Contains(type.enemyName))
                 continue; // keeps dying on this moon — stop retrying it
             alivePerType.TryGetValue(type.enemyName, out int alive);
@@ -708,19 +708,16 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         }
     }
 
-    // Harmless/ambient daytime creatures, for the AllowDaytimeEnemies group switch.
-    // Primary signal is the game's own EnemyType.isDaytimeEnemy flag; the name set is
-    // a fallback in case a type is not flagged in a given build.
-    private static readonly HashSet<string> DaytimeFallback =
+    // The genuinely harmless ambient creatures the AllowHarmlessCreatures switch
+    // governs. Deliberately just Manticoil (bird) and the Roaming/Docile Locust
+    // swarm — Tulip Snake is NOT included (it can grab players) and stays in the
+    // normal pool regardless of the switch.
+    private static readonly HashSet<string> HarmlessCreatures =
         new(StringComparer.OrdinalIgnoreCase)
-        { "Manticoil", "Tulip Snake", "Flowersnake", "Docile Locust Bees" };
+        { "Manticoil", "Docile Locust Bees" };
 
-    private static bool IsDaytimeCreature(EnemyType type)
-    {
-        try { if (type.isDaytimeEnemy) return true; }
-        catch { /* field missing in some build — fall back to names */ }
-        return DaytimeFallback.Contains(type.enemyName);
-    }
+    private static bool IsHarmlessCreature(EnemyType type) =>
+        HarmlessCreatures.Contains(type.enemyName);
 
     /// <summary>Percentage of upper-floor spawns to use for a given type.</summary>
     private static int UpperShareFor(EnemyType type)

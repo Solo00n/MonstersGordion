@@ -67,7 +67,7 @@ require a game restart (standard BepInEx behaviour).
 | Balance | UpperFloorSpawnShare | 70 | % of spawns at ship-landing level (rest → basement) |
 | Balance | OutsideEnemyShare | 50 | % chance to pick from outdoor enemy types |
 | Balance | OldBirdUpperFloorOnly | true | spawn the Old Bird only on the upper floor |
-| Balance | AllowDaytimeEnemies | true | master switch for harmless ambient creatures (birds, Docile swarm) |
+| Balance | AllowHarmlessCreatures | true | master switch for Manticoil + Roaming/Docile Locust swarm |
 | Balance | EarthLeviathanFloorEmerge | true | let the worm breach up through the building floor (experimental) |
 | ToilHead | CoilHeadTurretChance / CoilHeadSlayerChance | 25 / 0 | % turret on a Coil-Head, and % of those that are the minigun Slayer |
 | ToilHead | ManticoilTurretChance / ManticoilSlayerChance | 25 / 0 | same, for Manticoil |
@@ -106,9 +106,10 @@ Eyeless Dog, Forest Keeper, Old Bird and Giant Kiwi** — and the ambient swarms
 Giant Kiwi) get their nest placed on the interior navmesh automatically; the Old
 Bird is additionally locked to the upper floor.
 
-Set **`[Balance] AllowDaytimeEnemies = false`** to keep the building free of the
-harmless daytime creatures (Manticoil, Tulip Snake, Docile Locust Bees) as a
-group, regardless of their individual `Enabled`.
+Set **`[Balance] AllowHarmlessCreatures = false`** to keep the building free of the
+two genuinely harmless ambient creatures — the Manticoil and the Roaming/Docile
+Locust swarm — regardless of their individual `Enabled`. (Tulip Snake can grab
+players, so it is not affected and stays in the normal pool.)
 
 **Bush Wolf** (Kidnapper Fox) works when enabled: the mod grows vain shrouds on
 Gordion by calling `MoldSpreadManager.GenerateMold` directly on landing (the

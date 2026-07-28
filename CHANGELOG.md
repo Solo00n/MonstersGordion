@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.1
+
+- **`AllowHarmlessCreatures`** (renamed from `AllowDaytimeEnemies`) now governs only the
+  two genuinely harmless ambient creatures — Manticoil and the Roaming/Docile Locust swarm.
+  Tulip Snake (which can grab players) is no longer swept up by it and always stays in the
+  normal spawn pool.
+
 ## 1.4.0
 
 Ambient swarms, a harmless-creature master switch, and working versions of the three
@@ -7,9 +14,8 @@ previously-broken monsters — each traced to its exact cause in the game code.
 
 - **Ambient swarms enabled** at low weight by default: Docile Locust Bees (harmless),
   Red Locust Bees and Butler Bees.
-- **`[Balance] AllowDaytimeEnemies`** (default true): one switch to keep the building free
-  of harmless daytime creatures (Manticoil, Tulip Snake, Docile Locust Bees), keyed on the
-  game's own `EnemyType.isDaytimeEnemy` flag.
+- **`[Balance] AllowHarmlessCreatures`** (default true): one switch to keep the building
+  free of the harmless ambient creatures (Manticoil and the Roaming/Docile Locust swarm).
 - **Earth Leviathan (worm) now attacks.** `SandWormAI.StartEmergeAnimation` only emerges
   where the surface is "natural" (a `naturalSurfaceTags` tag), and with no Terrain on the
   Company moon it cancelled every emerge and roamed under the floor forever. New
