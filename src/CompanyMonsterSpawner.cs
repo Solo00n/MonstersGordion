@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using GameNetcodeStuff;
 using MonstersGordion.Compat;
 using Unity.Netcode;
 using UnityEngine;
@@ -24,6 +25,10 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     private readonly List<EnemyAI> _ownedEnemies = new();
     private readonly List<GameObject> _ownedNests = new();
     private readonly Dictionary<int, float> _spawnTimes = new();
+
+    // Original StartOfRound.naturalSurfaceTags, saved when we extend it so the worm
+    // can breach the Company floor; restored on shutdown. null when untouched.
+    private string[] _originalSurfaceTags;
 
     // Early-fail detection: types whose spawns die almost immediately (needing a
     // dungeon/weeds/etc. this moon lacks) are disabled for the landing so they
@@ -136,7 +141,8 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         }
 
         CreateAINodes(cfg.AINodeCount.Value);
-        CreateFakeTreesIfNeeded();
+        CreateDeadTreesIfNeeded();
+        EnableWormFloorEmergeIfNeeded();
         _loop = StartCoroutine(SpawnLoop());
         _maintenance = StartCoroutine(MaintenanceLoop());
         Plugin.Log.LogInfo(
@@ -171,6 +177,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             if (Plugin.Cfg.DespawnOnShipLeave.Value)
                 DespawnOwnedEnemies();
             DespawnOwnedNests();
+            RestoreWormFloorEmerge();
         }
         catch (Exception e)
         {
@@ -250,6 +257,8 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             var s = Plugin.Cfg.For(type);
             if (!s.Enabled.Value || s.SpawnWeight.Value <= 0 || s.MaxSpawnCount.Value <= 0)
                 continue;
+            if (!cfg.AllowDaytimeEnemies.Value && IsDaytimeCreature(type))
+                continue; // harmless ambient birds/swarms turned off as a group
             if (_disabledThisLanding.Contains(type.enemyName))
                 continue; // keeps dying on this moon — stop retrying it
             alivePerType.TryGetValue(type.enemyName, out int alive);
@@ -535,6 +544,80 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             : (Vector3?)null;
     }
 
+    // ---------------------------------------------------------------- worm floor emerge
+
+    /// <summary>
+    /// Lets the Earth Leviathan breach through the Company building floor.
+    ///
+    /// SandWormAI.StartEmergeAnimation only allows an emerge where the surface it
+    /// would rise through is "natural": with no active Terrain (the Company moon)
+    /// it checks the hit collider's tag against StartOfRound.naturalSurfaceTags.
+    /// The interior floor isn't tagged as a natural surface, so the worm cancels
+    /// every emerge and never attacks. We probe the actual floor tag and append it
+    /// (plus a couple of common building tags) to naturalSurfaceTags for this
+    /// landing, then restore the original array on shutdown.
+    /// </summary>
+    private void EnableWormFloorEmergeIfNeeded()
+    {
+        if (!Plugin.Cfg.EarthLeviathanFloorEmerge.Value)
+            return;
+        var worm = EnemyCatalog.Enemies.FirstOrDefault(
+            e => string.Equals(e.enemyName, "Earth Leviathan", StringComparison.OrdinalIgnoreCase));
+        if (worm == null || !Plugin.Cfg.For(worm).Enabled.Value)
+            return;
+
+        var sor = StartOfRound.Instance;
+        if (sor == null || sor.naturalSurfaceTags == null)
+            return;
+
+        try
+        {
+            var tags = new HashSet<string>(sor.naturalSurfaceTags, StringComparer.Ordinal);
+
+            // Probe the floor tag under the anchor / a sample point.
+            Vector3 probe = _sampler?.Anchor ?? sor.shipLandingPosition.position;
+            if (Physics.Raycast(probe + Vector3.up * 3f, Vector3.down, out RaycastHit hit, 12f,
+                    sor.collidersAndRoomMaskAndDefault, QueryTriggerInteraction.Ignore))
+            {
+                string floorTag = hit.collider.tag;
+                if (!string.IsNullOrEmpty(floorTag))
+                    tags.Add(floorTag);
+                Plugin.DebugLog($"Worm floor probe hit '{hit.collider.name}' tag='{floorTag}'.");
+            }
+
+            // Common Company building surface tags, so the worm can breach anywhere.
+            foreach (string t in new[] { "Untagged", "Catwalk", "Metal", "Concrete", "Wood", "Tiles" })
+                tags.Add(t);
+
+            _originalSurfaceTags = sor.naturalSurfaceTags;
+            sor.naturalSurfaceTags = tags.ToArray();
+            Plugin.Log.LogInfo(
+                $"Earth Leviathan: extended naturalSurfaceTags to {sor.naturalSurfaceTags.Length} entries " +
+                "so the worm can breach up through the Company floor.");
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.LogWarning($"Worm floor-emerge setup failed: {e.Message}");
+            _originalSurfaceTags = null;
+        }
+    }
+
+    private void RestoreWormFloorEmerge()
+    {
+        if (_originalSurfaceTags == null)
+            return;
+        try
+        {
+            if (StartOfRound.Instance != null)
+                StartOfRound.Instance.naturalSurfaceTags = _originalSurfaceTags;
+        }
+        catch (Exception e)
+        {
+            Plugin.DebugLog($"Restoring naturalSurfaceTags failed: {e.Message}");
+        }
+        _originalSurfaceTags = null;
+    }
+
     private static bool CheckVainShrouds()
     {
         try
@@ -569,6 +652,18 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
                     "load, so set [Integration] VainShroudIterations > 0 (or keep it at 0 with " +
                     "Bush Wolf enabled) and fly to Gordion again — enabling it mid-round is too late.");
             }
+            return false;
+        }
+
+        // A lone Cadaver Bloom without its Growth is invisible and inert; only
+        // allow it when the standalone-trap driver is on to actually burst it.
+        if (string.Equals(type.enemyName, "Cadaver Bloom", StringComparison.OrdinalIgnoreCase)
+            && !Plugin.Cfg.CadaverBloomTraps.Value)
+        {
+            if (_warnedRequirements.Add(type.enemyName))
+                Plugin.Log.LogWarning(
+                    "Not spawning 'Cadaver Bloom': it needs its Growth (a dungeon) to activate. " +
+                    "Enable [Integration] CadaverBloomTraps to plant standalone burst traps instead.");
             return false;
         }
         return true;
@@ -611,6 +706,20 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
                     "feature this moon lacks). Disabling it until the next landing.");
             }
         }
+    }
+
+    // Harmless/ambient daytime creatures, for the AllowDaytimeEnemies group switch.
+    // Primary signal is the game's own EnemyType.isDaytimeEnemy flag; the name set is
+    // a fallback in case a type is not flagged in a given build.
+    private static readonly HashSet<string> DaytimeFallback =
+        new(StringComparer.OrdinalIgnoreCase)
+        { "Manticoil", "Tulip Snake", "Flowersnake", "Docile Locust Bees" };
+
+    private static bool IsDaytimeCreature(EnemyType type)
+    {
+        try { if (type.isDaytimeEnemy) return true; }
+        catch { /* field missing in some build — fall back to names */ }
+        return DaytimeFallback.Contains(type.enemyName);
     }
 
     /// <summary>Percentage of upper-floor spawns to use for a given type.</summary>
@@ -907,7 +1016,59 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             .ToList()
             .ForEach(id => _lastMovement.Remove(id));
 
+        DriveCadaverBlooms();
         EnforceForeignEnemyPolicy();
+    }
+
+    /// <summary>
+    /// Standalone Cadaver Bloom traps. A Bloom spawned without its Growth just
+    /// lies dormant and invisible forever (the Growth is what bursts it). Here we
+    /// play that role on the host: when a living player comes within the trigger
+    /// range of a dormant owned Bloom, call BurstForth so it erupts and chases.
+    /// Host-side; other clients may not see the burst animation.
+    /// </summary>
+    private void DriveCadaverBlooms()
+    {
+        var sor = StartOfRound.Instance;
+        if (sor == null)
+            return;
+        float range = Plugin.Cfg.CadaverBloomTriggerRange.Value;
+        float sqrRange = range * range;
+
+        foreach (var ai in _ownedEnemies)
+        {
+            if (ai is not CadaverBloomAI bloom || bloom.isEnemyDead || bloom.hasBurst)
+                continue;
+
+            PlayerControllerB nearest = null;
+            float bestSqr = sqrRange;
+            Vector3 bloomPos = bloom.transform.position;
+            foreach (var player in sor.allPlayerScripts)
+            {
+                if (player == null || !player.isPlayerControlled || player.isPlayerDead)
+                    continue;
+                float sqr = (player.transform.position - bloomPos).sqrMagnitude;
+                if (sqr < bestSqr)
+                {
+                    bestSqr = sqr;
+                    nearest = player;
+                }
+            }
+
+            if (nearest == null)
+                continue;
+
+            try
+            {
+                bloom.BurstForth(nearest, kill: false, bloomPos, bloom.transform.eulerAngles);
+                Plugin.Log.LogInfo(
+                    $"Cadaver Bloom burst on a player within {Mathf.Sqrt(bestSqr):F1} m at {bloomPos:F1}.");
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning($"Cadaver Bloom BurstForth failed: {e.Message}");
+            }
+        }
     }
 
     /// <summary>
@@ -1059,25 +1220,27 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         return node;
     }
 
-    // ---------------------------------------------------------------- fake trees
+    // ---------------------------------------------------------------- dead trees
 
     // Layer index PumaAI.Start() looks for when validating a tree: it does
     // Physics.CheckSphere(treePos + up*16, 15, 1<<25) with the tree itself
     // deactivated, i.e. it wants some *other* geometry (a canopy) on layer 25
     // near the treetop. We satisfy that with a separate collider on layer 25.
     private const int TreeCanopyLayer = 25;
-    private const int FakeTreeCount = 12;
 
     /// <summary>
-    /// Feiopar (PumaAI) only stalks from objects tagged "Tree"; the Company
-    /// building has none, so it stands idle (ChooseTargetTree finds nothing and
-    /// it never sets a destination). Experimental fix: fabricate tree nodes on
-    /// the interior navmesh, each paired with a canopy collider so PumaAI's
-    /// validation accepts them. Off by default is respected via the config flag.
+    /// Grows dead trees for Feiopar (PumaAI) to stalk from.
+    ///
+    /// PumaAI only hunts from objects tagged "Tree"; the Company building has none,
+    /// so it just idles. Each dead tree is: a "Tree"-tagged node (the AllTreeNodes
+    /// entry PumaAI navigates to) with a visible trunk mesh for looks, plus a
+    /// sibling canopy collider on layer 25 that passes PumaAI's tree-validation
+    /// CheckSphere. Because PumaAI perches ~3 m above the ground next to the tree
+    /// (not by climbing a mesh), a floor-level tree puts it at a sane height.
     /// </summary>
-    private void CreateFakeTreesIfNeeded()
+    private void CreateDeadTreesIfNeeded()
     {
-        if (!Plugin.Cfg.FeioparFakeTrees.Value)
+        if (!Plugin.Cfg.FeioparDeadTrees.Value)
             return;
 
         var feiopar = EnemyCatalog.Enemies.FirstOrDefault(
@@ -1086,24 +1249,26 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             return;
         if (!Plugin.Cfg.For(feiopar).Enabled.Value)
         {
-            Plugin.DebugLog("Feiopar disabled — skipping fake tree generation.");
+            Plugin.DebugLog("Feiopar disabled — skipping dead-tree generation.");
             return;
         }
 
+        int count = Plugin.Cfg.FeioparTreeCount.Value;
         int created = 0;
-        for (int i = 0; i < FakeTreeCount; i++)
+        for (int i = 0; i < count; i++)
         {
             Vector3? point = _sampler.GetRandomPoint(0f, 15, 50);
             if (point == null)
                 continue;
 
-            // The tree node itself, tagged "Tree".
-            var tree = CreateNode($"MG_FakeTree_{i}", point.Value, "Tree");
+            // "Tree"-tagged node PumaAI paths to, plus a cosmetic trunk under it.
+            var tree = CreateNode($"MG_DeadTree_{i}", point.Value, "Tree");
+            AttachTrunkMesh(tree);
             _fakeTrees.Add(tree);
 
             // Canopy collider — a SIBLING (not a child) so it stays active while
             // PumaAI deactivates the tree during its CheckSphere validation.
-            var canopy = new GameObject($"MG_FakeTreeCanopy_{i}") { layer = TreeCanopyLayer };
+            var canopy = new GameObject($"MG_DeadTreeCanopy_{i}") { layer = TreeCanopyLayer };
             canopy.transform.SetParent(transform, worldPositionStays: false);
             canopy.transform.position = point.Value + Vector3.up * 12f;
             var col = canopy.AddComponent<SphereCollider>();
@@ -1119,8 +1284,32 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         ResetPumaTreeCache(feiopar);
 
         Plugin.Log.LogInfo(
-            $"Feiopar fake trees: created {created} (EXPERIMENTAL — it may perch oddly near the " +
-            "ceiling; set [Integration] FeioparFakeTrees=false to disable).");
+            $"Feiopar: grew {created} dead trees for it to stalk from (EXPERIMENTAL — " +
+            "set [Integration] FeioparDeadTrees=false to disable).");
+    }
+
+    /// <summary>Adds a simple, collider-less dead-tree trunk under a tree node.</summary>
+    private static void AttachTrunkMesh(GameObject treeNode)
+    {
+        try
+        {
+            var trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            trunk.name = "Trunk";
+            // Visual only — strip the collider so it never blocks agents/players.
+            var col = trunk.GetComponent<Collider>();
+            if (col != null)
+                Destroy(col);
+            trunk.transform.SetParent(treeNode.transform, worldPositionStays: false);
+            trunk.transform.localScale = new Vector3(0.35f, 2.2f, 0.35f); // ~0.7 m thick, ~4.4 m tall
+            trunk.transform.localPosition = new Vector3(0f, 2.2f, 0f);    // base at the node (floor)
+            var renderer = trunk.GetComponent<Renderer>();
+            if (renderer != null)
+                renderer.material.color = new Color(0.16f, 0.11f, 0.08f); // dead-wood brown
+        }
+        catch (Exception e)
+        {
+            Plugin.DebugLog($"Could not build trunk mesh: {e.Message}");
+        }
     }
 
     private static void ResetPumaTreeCache(EnemyType feiopar)

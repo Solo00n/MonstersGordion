@@ -26,19 +26,18 @@ internal static class EnemyCatalog
                 "save load (see [Integration] VainShroudIterations), so enable Bush Wolf and reload " +
                 "the save / fly fresh — enabling it mid-round is too late for weed generation",
             ["Cadaver Growths"] =
-                "CadaverGrowthAI is a map-wide master that requires a dungeon; on Gordion it logs " +
-                "'Found no dungeon' and self-destructs. It cannot work here and the mod auto-disables " +
-                "it for the landing after it keeps dying",
+                "CadaverGrowthAI is a map-wide master that hard-requires a DunGen dungeon; on Gordion " +
+                "it logs 'Found no dungeon' and self-destructs. It cannot work here (the Company " +
+                "building is not a dungeon) and stays disabled — use Cadaver Bloom traps instead",
             ["Cadaver Bloom"] =
-                "CadaverBloomAI spawns as a dormant, invisible, agent-disabled seed by design — it " +
-                "is planted and woken by Cadaver Growths. Enable 'Cadaver Growths' instead of " +
-                "spawning Blooms directly",
+                "Enabled via [Integration] CadaverBloomTraps: planted directly as standalone corpse " +
+                "traps that burst and chase when a player walks close, so no Growth/dungeon is needed",
             ["Feiopar"] =
-                "PumaAI normally stalks from trees; inside the Company building it falls back to " +
-                "ground stalking",
+                "PumaAI only stalks from 'Tree' objects. With [Integration] FeioparDeadTrees the mod " +
+                "grows dead trees for it on the interior navmesh; it perches ~3 m up and jumps between them",
             ["Earth Leviathan"] =
-                "SandWormAI burrows through terrain and surfaces under players — it works, but " +
-                "looks wrong indoors",
+                "SandWormAI only emerges through natural ground, which the Company interior lacks. With " +
+                "[Balance] EarthLeviathanFloorEmerge the mod lets it breach up through the building floor",
             // No notes for RadMech / GiantKiwi: both are nest-requiring and work
             // correctly now that EnsureNestFor places their nest automatically.
         };

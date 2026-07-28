@@ -40,6 +40,8 @@ internal sealed class PluginConfig
     public readonly ConfigEntry<int> UpperFloorSpawnShare;
     public readonly ConfigEntry<int> OutsideEnemyShare;
     public readonly ConfigEntry<bool> OldBirdUpperFloorOnly;
+    public readonly ConfigEntry<bool> AllowDaytimeEnemies;
+    public readonly ConfigEntry<bool> EarthLeviathanFloorEmerge;
 
     // [ToilHead] — per-enemy turret chances (only the three ToilHead supports).
     public readonly ConfigEntry<int> CoilHeadTurretChance;
@@ -52,7 +54,10 @@ internal sealed class PluginConfig
     // [Integration]
     public readonly ConfigEntry<int> VainShroudIterations;
     public readonly ConfigEntry<int> VainShroudPatches;
-    public readonly ConfigEntry<bool> FeioparFakeTrees;
+    public readonly ConfigEntry<bool> FeioparDeadTrees;
+    public readonly ConfigEntry<int> FeioparTreeCount;
+    public readonly ConfigEntry<bool> CadaverBloomTraps;
+    public readonly ConfigEntry<float> CadaverBloomTriggerRange;
 
     /// <summary>Turret chance (%) for a ToilHead-eligible enemy, 0 if not one.</summary>
     public int ToilHeadTurretChance(Compat.ToilHeadCompat.Kind kind) => kind switch
@@ -138,18 +143,23 @@ internal sealed class PluginConfig
             ["Old Bird"]           = (true,  3, 0, 1),
             ["GiantKiwi"]          = (true,  4, 0, 1), // v81 — nests indoors, confirmed working
 
-            // ---- Disabled by default: do NOT work correctly on Gordion yet. ----
-            // Kept in the config (and code) so they can be re-enabled for testing;
-            // tracked on the 'experimental' branch. See the README.
-            ["Feiopar"]            = (false, 6, 0, 1), // PumaAI needs trees; idles without them
-            ["Cadaver Growths"]    = (false, 4, 0, 1), // needs a dungeon ("Found no dungeon")
-            ["Cadaver Bloom"]      = (false, 4, 0, 2), // dormant seed planted by the Growth
             ["Bush Wolf"]          = (false, 6, 0, 1), // Kidnapper Fox — needs vain shrouds
-            ["Earth Leviathan"]    = (false, 2, 0, 1), // burrows through terrain — broken indoors
             ["Manticoil"]          = (false, 10, 0, 3), // behaves erratically here
-            ["Red Locust Bees"]    = (false, 5, 0, 1), // needs a hive
-            ["Docile Locust Bees"] = (false, 5, 0, 2),
-            ["Butler Bees"]        = (false, 3, 0, 1), // normally spawned from a dead Butler
+
+            // Ambient swarms — enabled at low weight. Docile Locust Bees are the
+            // harmless firefly swarm (daytime); the two aggressive bee swarms work
+            // via the mod's isOutside handling.
+            ["Red Locust Bees"]    = (true,  4, 0, 1),
+            ["Docile Locust Bees"] = (true,  5, 0, 2),
+            ["Butler Bees"]        = (true,  3, 0, 1),
+
+            // ---- Experimental: disabled by default, made to work on Gordion via
+            // dedicated mechanics (see the spawner). Enable to test. ----
+            ["Earth Leviathan"]    = (false, 2, 0, 1), // breaches up through the floor
+            ["Feiopar"]            = (false, 6, 0, 1), // stalks from generated dead trees
+            ["Cadaver Bloom"]      = (false, 4, 0, 2), // standalone burst trap (no Growth/dungeon)
+            // Cadaver Growths is intentionally NOT listed: it hard-requires a DunGen
+            // dungeon and cannot work on the Company moon. Falls back to disabled.
         };
 
     public PluginConfig(ConfigFile file)
@@ -198,6 +208,17 @@ internal sealed class PluginConfig
             "UpperFloorSpawnShare for it. The Old Bird is huge and the basement is cramped, so it " +
             "moves and fights much better upstairs.");
 
+        AllowDaytimeEnemies = file.Bind("Balance", "AllowDaytimeEnemies", true,
+            "Master switch for harmless/ambient daytime creatures (Manticoil, Tulip Snake, " +
+            "Docile Locust Bees). Set false to keep the building free of birds and firefly swarms " +
+            "regardless of their per-enemy Enabled setting.");
+
+        EarthLeviathanFloorEmerge = file.Bind("Balance", "EarthLeviathanFloorEmerge", true,
+            "EXPERIMENTAL. Lets the Earth Leviathan (worm) breach up through the Company building " +
+            "floor. The worm normally only emerges through natural ground, which Gordion's interior " +
+            "lacks, so without this it roams under the floor forever and never attacks. Disable to " +
+            "leave the worm inert (or if it emerges through unwanted surfaces).");
+
         // [ToilHead] — the three enemies ToilHead can turret, each configurable.
         // TurretChance = % of spawns of that enemy that get a turret; SlayerChance
         // = % of those turrets that are the minigun "Slayer" variant. All ignored
@@ -234,12 +255,26 @@ internal sealed class PluginConfig
                 "never in the same place twice. Raise this for several overgrown areas.",
                 new AcceptableValueRange<int>(1, 4)));
 
-        FeioparFakeTrees = file.Bind("Integration", "FeioparFakeTrees", false,
+        FeioparDeadTrees = file.Bind("Integration", "FeioparDeadTrees", true,
             "EXPERIMENTAL. Feiopar (PumaAI) only stalks players from trees tagged 'Tree'; the " +
             "Company building has none, so without this it just stands still. When enabled, the mod " +
-            "fabricates fake tree nodes on the interior navmesh (with the overhead collider the game " +
-            "checks for) so Feiopar can stalk and pounce. It may perch oddly near the ceiling — " +
-            "turn this off if it looks broken. Ignored when Feiopar is disabled or absent.");
+            "grows simple dead-tree trunks on the interior navmesh (with the overhead canopy collider " +
+            "the game validates against) so Feiopar can climb, stalk from ~3 m up, and pounce. " +
+            "Ignored when Feiopar is disabled or absent.");
+
+        FeioparTreeCount = file.Bind("Integration", "FeioparTreeCount", 10,
+            new ConfigDescription("How many dead trees to grow for Feiopar to stalk and jump between.",
+                new AcceptableValueRange<int>(3, 24)));
+
+        CadaverBloomTraps = file.Bind("Integration", "CadaverBloomTraps", true,
+            "EXPERIMENTAL. Cadaver Bloom normally needs its map-wide Growth (which requires a dungeon " +
+            "the Company building lacks). When enabled, the mod instead plants Blooms directly at " +
+            "random spots as standalone corpse traps that burst and chase when a player walks close, " +
+            "so no dungeon is needed. Ignored when Cadaver Bloom is disabled or absent.");
+
+        CadaverBloomTriggerRange = file.Bind("Integration", "CadaverBloomTriggerRange", 4f,
+            new ConfigDescription("How close a player must get (meters) for a planted Cadaver Bloom to burst.",
+                new AcceptableValueRange<float>(1.5f, 12f)));
 
         DespawnOnShipLeave = file.Bind("Advanced", "DespawnOnShipLeave", true,
             "Despawn enemies created by this mod when the ship leaves the Company moon.");

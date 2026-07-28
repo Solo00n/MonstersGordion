@@ -67,11 +67,14 @@ require a game restart (standard BepInEx behaviour).
 | Balance | UpperFloorSpawnShare | 70 | % of spawns at ship-landing level (rest → basement) |
 | Balance | OutsideEnemyShare | 50 | % chance to pick from outdoor enemy types |
 | Balance | OldBirdUpperFloorOnly | true | spawn the Old Bird only on the upper floor |
+| Balance | AllowDaytimeEnemies | true | master switch for harmless ambient creatures (birds, Docile swarm) |
+| Balance | EarthLeviathanFloorEmerge | true | let the worm breach up through the building floor (experimental) |
 | ToilHead | CoilHeadTurretChance / CoilHeadSlayerChance | 25 / 0 | % turret on a Coil-Head, and % of those that are the minigun Slayer |
 | ToilHead | ManticoilTurretChance / ManticoilSlayerChance | 25 / 0 | same, for Manticoil |
 | ToilHead | MaskedTurretChance / MaskedSlayerChance | 0 / 0 | same, for Masked (mimic) |
-| Integration | VainShroudIterations | 0 | grow weeds for Bush Wolf (0 = auto; experimental) |
-| Integration | FeioparFakeTrees | false | fabricate trees so Feiopar can stalk (experimental) |
+| Integration | VainShroudIterations / VainShroudPatches | 0 / 1 | grow weeds for Bush Wolf (0 = auto); number of random patches |
+| Integration | FeioparDeadTrees / FeioparTreeCount | true / 10 | grow dead trees so Feiopar can stalk (experimental) |
+| Integration | CadaverBloomTraps / CadaverBloomTriggerRange | true / 4 | plant standalone Cadaver Bloom burst traps (experimental) |
 | Advanced | DespawnOnShipLeave | true | remove this mod's enemies when leaving |
 | Advanced | CountForeignEnemies | true | other mods' enemies count toward caps |
 | Advanced | MinDistanceFromPlayers | 12 | min spawn distance to players, meters |
@@ -97,36 +100,43 @@ so enemies stay in the building. Only turn this off for debugging.
 **Enabled — work well:** all interior enemies (Bracken, Thumper, Hoarding Bug,
 Snare Flea, Bunker Spider, Coil-Head, Ghost Girl, Spore Lizard, Nutcracker,
 Jester, Masked, Hygrodere, Butler, Barber, Maneater), plus **Stingray** and
-**Tulip Snake**, and the outdoor threats that path fine indoors — **Baboon Hawk,
-Eyeless Dog, Forest Keeper, Old Bird and Giant Kiwi**. Nest-requiring types (Old
-Bird, Giant Kiwi) get their nest placed on the interior navmesh automatically;
-the Old Bird is additionally locked to the upper floor.
+**Tulip Snake**, the outdoor threats that path fine indoors — **Baboon Hawk,
+Eyeless Dog, Forest Keeper, Old Bird and Giant Kiwi** — and the ambient swarms
+**Docile / Red Locust Bees and Butler Bees**. Nest-requiring types (Old Bird,
+Giant Kiwi) get their nest placed on the interior navmesh automatically; the Old
+Bird is additionally locked to the upper floor.
 
-**Disabled by default — do NOT work correctly on Gordion yet** (kept in the
-config and code, toggleable, and preserved on the `experimental` git branch):
+Set **`[Balance] AllowDaytimeEnemies = false`** to keep the building free of the
+harmless daytime creatures (Manticoil, Tulip Snake, Docile Locust Bees) as a
+group, regardless of their individual `Enabled`.
 
-- **Feiopar** (PumaAI) stalks only from trees; without them it just idles. The
-  experimental `[Integration] FeioparFakeTrees` fabricates trees but it parks near
-  the ceiling — off by default.
-- **Cadaver Growths** requires a dungeon (`Found no dungeon`) and self-destructs;
-  **Cadaver Bloom** is a dormant seed the Growth would plant.
-- **Bush Wolf** (Kidnapper Fox) needs vain shrouds. The mod now grows them on Gordion
-  by flipping the moon's `canSpawnMold` flag and seeding `moldSpreadIterations` in
-  `StartOfRound.LoadPlanetsMoldSpreadData` (the technique used by
-  [FoxLover](https://github.com/ButteryStancakes/FoxLover)); the vanilla pipeline
-  generates and network-syncs the weeds on landing. Enable Bush Wolf and set
-  `[Integration] VainShroudIterations` (0 = auto when the Fox is on), then reload
-  the save or fly fresh — weeds are decided at save load, not mid-round.
-- **Earth Leviathan** burrows through terrain and looks wrong inside a building.
+**Bush Wolf** (Kidnapper Fox) works when enabled: the mod grows vain shrouds on
+Gordion by calling `MoldSpreadManager.GenerateMold` directly on landing (the
+vanilla level-load path never runs here under LethalLevelLoader). Tune with
+`[Integration] VainShroudIterations` / `VainShroudPatches`.
 
-Every landing writes a spawnability report to the log naming each enemy, its AI
-class and why it will or will not spawn, and the mod auto-disables any type that
-keeps dying within seconds of spawning so it is never spammed.
+**Experimental — disabled by default, made to work via dedicated mechanics** (each
+has a config toggle; may look imperfect indoors):
+
+- **Feiopar** (leopard, PumaAI) stalks only from trees. `[Integration]
+  FeioparDeadTrees` grows dead-tree trunks on the navmesh (with the canopy collider
+  the game validates); it perches ~3 m up and jumps between them.
+- **Earth Leviathan** (worm, SandWormAI) only emerges through natural ground, which
+  the interior lacks. `[Balance] EarthLeviathanFloorEmerge` adds the building floor
+  to the game's `naturalSurfaceTags` so it breaches up through the floor.
+- **Cadaver Bloom** normally needs its Growth (a dungeon). `[Integration]
+  CadaverBloomTraps` plants Blooms directly as standalone corpse traps that burst
+  and chase when a player walks within `CadaverBloomTriggerRange`.
+- **Cadaver Growths** is *not* supported — it hard-requires a DunGen dungeon the
+  Company building doesn't have; it stays disabled.
+
+These experimental fixes are host-side (the host decides behaviour). Every landing
+also writes a spawnability report to the log, and the mod auto-disables any type
+that keeps dying within seconds so nothing gets spammed.
 
 Per-enemy sections: `[Enemy.Flowerman]`, `[Enemy.Bunker Spider]`, … with
-`Enabled`, `SpawnWeight`, `MinSpawnCount`, `MaxSpawnCount`. Defaults: interior
-threats enabled; outdoor giants/dogs/Old Birds, bees, Butler Bees and Manticoil
-disabled (enable them yourself); `Lasso` and `Red pill` hard-excluded.
+`Enabled`, `SpawnWeight`, `MinSpawnCount`, `MaxSpawnCount`. `Lasso` and
+`Red pill` are hard-excluded.
 
 ## Building from source
 

@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.4.0
+
+Ambient swarms, a harmless-creature master switch, and working versions of the three
+previously-broken monsters — each traced to its exact cause in the game code.
+
+- **Ambient swarms enabled** at low weight by default: Docile Locust Bees (harmless),
+  Red Locust Bees and Butler Bees.
+- **`[Balance] AllowDaytimeEnemies`** (default true): one switch to keep the building free
+  of harmless daytime creatures (Manticoil, Tulip Snake, Docile Locust Bees), keyed on the
+  game's own `EnemyType.isDaytimeEnemy` flag.
+- **Earth Leviathan (worm) now attacks.** `SandWormAI.StartEmergeAnimation` only emerges
+  where the surface is "natural" (a `naturalSurfaceTags` tag), and with no Terrain on the
+  Company moon it cancelled every emerge and roamed under the floor forever. New
+  `[Balance] EarthLeviathanFloorEmerge` adds the interior floor tag(s) to
+  `naturalSurfaceTags` so it breaches up through the floor (restored on leave).
+- **Feiopar (leopard) now stalks.** PumaAI hunts only from `Tree`-tagged objects and perches
+  ~3 m above ground next to them (it does not climb a mesh). `[Integration] FeioparDeadTrees`
+  grows visible dead-tree trunks on the navmesh, each with the canopy collider PumaAI
+  validates, so it stalks and jumps between them. `FeioparTreeCount` controls how many.
+- **Cadaver Bloom now works without a dungeon.** The Growth master hard-requires a DunGen
+  dungeon (impossible in the Company building); the Bloom does not. `[Integration]
+  CadaverBloomTraps` plants Blooms directly at random spots and bursts them when a player
+  comes within `CadaverBloomTriggerRange`, so they act as standalone corpse traps.
+  Cadaver Growths remains unsupported (needs a dungeon).
+- Experimental monster fixes are host-side and off by default; enable per-enemy to test.
+
 ## 1.3.2
 
 - **Vain shrouds no longer grow in the same place every time.** 1.3.1 spread them from
