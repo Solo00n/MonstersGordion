@@ -129,15 +129,14 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         }
 
         // Weeds: normally grown during level load, but LethalLevelLoader reworks
-        // that path so on Gordion it never runs. Grow them here instead — see
-        // GrowVainShrouds. Evaluated once so GetWeeds() (which logs on every
-        // call) is not hit each spawn cycle.
+        // that path so on Gordion it never runs. Grow them here instead — but ONLY
+        // when the Kidnapper Fox can actually spawn (enabled AND in the pool), since
+        // weeds exist solely to keep it alive. Nothing else needs them.
         _hasVainShrouds = CheckVainShrouds();
-        if (!_hasVainShrouds)
+        if (!_hasVainShrouds && BushWolfIsSpawnable())
         {
-            int weedIterations = cfg.ResolveVainShroudIterations();
-            if (weedIterations > 0)
-                _hasVainShrouds = GrowVainShrouds(weedIterations);
+            int weedIterations = cfg.VainShroudIterations.Value > 0 ? cfg.VainShroudIterations.Value : 12;
+            _hasVainShrouds = GrowVainShrouds(weedIterations);
         }
 
         CreateAINodes(cfg.AINodeCount.Value);
@@ -616,6 +615,14 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             Plugin.DebugLog($"Restoring naturalSurfaceTags failed: {e.Message}");
         }
         _originalSurfaceTags = null;
+    }
+
+    /// <summary>True only when the Kidnapper Fox is enabled and survived the pool filter.</summary>
+    private static bool BushWolfIsSpawnable()
+    {
+        var fox = EnemyCatalog.Enemies.FirstOrDefault(
+            e => string.Equals(e.enemyName, "Bush Wolf", StringComparison.OrdinalIgnoreCase));
+        return fox != null && Plugin.Cfg.For(fox).Enabled.Value;
     }
 
     private static bool CheckVainShrouds()
@@ -1115,9 +1122,11 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     }
 
     // Enemies whose AI legitimately keeps them still — never nudge these.
+    // Feiopar is included: it stalks by perching motionless on a tree, so nudging
+    // it every 25 s yanks it off its ambush and it never actually hunts.
     private static readonly HashSet<string> StationaryByDesign =
         new(StringComparer.OrdinalIgnoreCase)
-        { "Flowerman", "Spring", "Clay Surgeon", "Jester", "Girl", "Cadaver Bloom" };
+        { "Flowerman", "Spring", "Clay Surgeon", "Jester", "Girl", "Cadaver Bloom", "Feiopar" };
 
     /// <summary>
     /// Teleports an enemy back inside if it can no longer reach the building.
@@ -1285,6 +1294,8 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             "set [Integration] FeioparDeadTrees=false to disable).");
     }
 
+    private static Material _trunkMaterial;
+
     /// <summary>Adds a simple, collider-less dead-tree trunk under a tree node.</summary>
     private static void AttachTrunkMesh(GameObject treeNode)
     {
@@ -1299,14 +1310,56 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             trunk.transform.SetParent(treeNode.transform, worldPositionStays: false);
             trunk.transform.localScale = new Vector3(0.35f, 2.2f, 0.35f); // ~0.7 m thick, ~4.4 m tall
             trunk.transform.localPosition = new Vector3(0f, 2.2f, 0f);    // base at the node (floor)
+
             var renderer = trunk.GetComponent<Renderer>();
-            if (renderer != null)
-                renderer.material.color = new Color(0.16f, 0.11f, 0.08f); // dead-wood brown
+            var mat = GetTrunkMaterial();
+            if (renderer != null && mat != null)
+                renderer.sharedMaterial = mat;
         }
         catch (Exception e)
         {
             Plugin.DebugLog($"Could not build trunk mesh: {e.Message}");
         }
+    }
+
+    /// <summary>
+    /// A dark-wood material that renders in the game's HDRP pipeline. Unity's
+    /// primitive default uses the built-in Standard shader, which shows up
+    /// invisible/magenta under HDRP — so we clone a real material from a rendered
+    /// scene object (guaranteed HDRP-compatible) and tint it.
+    /// </summary>
+    private static Material GetTrunkMaterial()
+    {
+        if (_trunkMaterial != null)
+            return _trunkMaterial;
+        try
+        {
+            foreach (var r in UnityEngine.Object.FindObjectsOfType<MeshRenderer>())
+            {
+                var src = r.sharedMaterial;
+                if (src == null || src.shader == null)
+                    continue;
+                if (src.shader.name.IndexOf("HDRP", StringComparison.OrdinalIgnoreCase) < 0
+                    && src.shader.name.IndexOf("Lit", StringComparison.OrdinalIgnoreCase) < 0)
+                    continue; // want an HDRP/Lit-style material
+
+                var mat = new Material(src) { name = "MG_DeadTreeBark" };
+                var brown = new Color(0.16f, 0.11f, 0.08f);
+                if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", brown);
+                if (mat.HasProperty("_Color")) mat.SetColor("_Color", brown);
+                if (mat.HasProperty("_BaseColorMap")) mat.SetTexture("_BaseColorMap", null);
+                if (mat.HasProperty("_MainTex")) mat.SetTexture("_MainTex", null);
+                _trunkMaterial = mat;
+                Plugin.DebugLog($"Dead-tree material cloned from shader '{src.shader.name}'.");
+                return _trunkMaterial;
+            }
+            Plugin.DebugLog("No HDRP material found in scene for dead-tree trunks (will render default).");
+        }
+        catch (Exception e)
+        {
+            Plugin.DebugLog($"GetTrunkMaterial failed: {e.Message}");
+        }
+        return null;
     }
 
     private static void ResetPumaTreeCache(EnemyType feiopar)

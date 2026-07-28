@@ -150,7 +150,7 @@ internal sealed class PluginConfig
             // harmless firefly swarm (daytime); the two aggressive bee swarms work
             // via the mod's isOutside handling.
             ["Red Locust Bees"]    = (true,  4, 0, 1),
-            ["Docile Locust Bees"] = (true,  5, 0, 2),
+            ["Docile Locust Bees"] = (false, 5, 0, 2), // Roaming Locust — disabled (not visible/useful indoors)
             ["Butler Bees"]        = (true,  3, 0, 1),
 
             // ---- Experimental: disabled by default, made to work on Gordion via

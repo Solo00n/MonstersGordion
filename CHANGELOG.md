@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.4.2
+
+- **Dead trees are visible now.** The trunks were built from a Unity primitive, whose
+  default Standard-shader material renders invisible under the game's HDRP pipeline. The
+  mod now clones a real HDRP material from the scene and tints it, so Feiopar's trees show.
+- **Feiopar no longer gets yanked off its ambush.** It stalks by perching motionless on a
+  tree, but the idle-nudge treated that as "stuck" and moved it every 25 s, so it never
+  hunted — it's now exempt from the nudge.
+- **Vain shrouds only grow when the Kidnapper Fox can actually spawn** (enabled and in the
+  pool). Previously an explicit `VainShroudIterations` or a leftover-enabled Fox grew weeds
+  even when only, say, Cadaver Bloom was active — weeds are a Fox-only feature.
+- **Docile Locust Bees (Roaming Locust) disabled by default** — not useful/visible indoors.
+
 ## 1.4.1
 
 - **`AllowHarmlessCreatures`** (renamed from `AllowDaytimeEnemies`) now governs only the
