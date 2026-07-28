@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.3
+
+- **Feiopar actually stalks now.** The dead trees were split across two objects, so PumaAI's
+  physics tree search never matched: it finds trees with `OverlapSphere` on layer 25 and needs
+  that same collider's object to be tagged `Tree` and present in `AllTreeNodes`. Each tree is
+  now a single vanilla-style object — tagged `Tree`, on layer 25, with a non-trigger collider —
+  plus a canopy collider ~16 m up for the validation `CheckSphere`. Feiopar perches on a tree
+  and pounces players that approach, instead of just wandering.
+- Dead trees now use a real in-game tree mesh when one is loaded, else an improved procedural
+  dead tree (trunk + angled branches) with the HDRP material.
+- **Cadaver Growths is documented as intentionally unsupported** — it hard-requires a DunGen
+  dungeon the Company building doesn't have (even BrutalCompanyMinus's Cadaver event can't
+  bypass it). Use the Cadaver Bloom traps for a working cadaver on Gordion.
+
 ## 1.4.2
 
 - **Dead trees are visible now.** The trunks were built from a Unity primitive, whose

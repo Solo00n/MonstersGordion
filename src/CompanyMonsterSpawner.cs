@@ -1237,12 +1237,13 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     /// <summary>
     /// Grows dead trees for Feiopar (PumaAI) to stalk from.
     ///
-    /// PumaAI only hunts from objects tagged "Tree"; the Company building has none,
-    /// so it just idles. Each dead tree is: a "Tree"-tagged node (the AllTreeNodes
-    /// entry PumaAI navigates to) with a visible trunk mesh for looks, plus a
-    /// sibling canopy collider on layer 25 that passes PumaAI's tree-validation
-    /// CheckSphere. Because PumaAI perches ~3 m above the ground next to the tree
-    /// (not by climbing a mesh), a floor-level tree puts it at a sane height.
+    /// PumaAI finds trees via Physics.OverlapSphere on layer 25 and then requires
+    /// the hit collider's GameObject to be tagged "Tree" AND to be in AllTreeNodes.
+    /// So each tree must be ONE object that is: tagged "Tree", on layer 25, and
+    /// carries a non-trigger collider (this is exactly how vanilla trees are set
+    /// up). A second canopy collider on layer 25 sits ~16 m up so the CheckSphere
+    /// that gates AllTreeNodes passes while the tree is briefly deactivated. PumaAI
+    /// then perches ~3 m above the ground next to the tree and pounces.
     /// </summary>
     private void CreateDeadTreesIfNeeded()
     {
@@ -1267,18 +1268,31 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             if (point == null)
                 continue;
 
-            // "Tree"-tagged node PumaAI paths to, plus a cosmetic trunk under it.
-            var tree = CreateNode($"MG_DeadTree_{i}", point.Value, "Tree");
-            AttachTrunkMesh(tree);
+            // The tree object: tagged "Tree", on layer 25, with a non-trigger
+            // capsule collider — this single object is both the AllTreeNodes entry
+            // and what PumaAI's OverlapSphere(1<<25) finds.
+            var tree = new GameObject($"MG_DeadTree_{i}") { layer = TreeCanopyLayer };
+            tree.transform.SetParent(transform, worldPositionStays: false);
+            tree.transform.position = point.Value;
+            try { tree.tag = "Tree"; }
+            catch (Exception e) { Plugin.DebugLog($"Could not tag tree: {e.Message}"); }
+            var trunkCol = tree.AddComponent<CapsuleCollider>();
+            trunkCol.direction = 1;          // Y-axis
+            trunkCol.radius = 0.4f;
+            trunkCol.height = 4f;
+            trunkCol.center = new Vector3(0f, 2f, 0f);
+            trunkCol.isTrigger = false;
+            AttachTreeVisual(tree);
             _fakeTrees.Add(tree);
 
             // Canopy collider — a SIBLING (not a child) so it stays active while
-            // PumaAI deactivates the tree during its CheckSphere validation.
+            // PumaAI deactivates the tree during its CheckSphere validation (which
+            // is centred at the tree +16 m with radius 15 m).
             var canopy = new GameObject($"MG_DeadTreeCanopy_{i}") { layer = TreeCanopyLayer };
             canopy.transform.SetParent(transform, worldPositionStays: false);
-            canopy.transform.position = point.Value + Vector3.up * 12f;
+            canopy.transform.position = point.Value + Vector3.up * 16f;
             var col = canopy.AddComponent<SphereCollider>();
-            col.radius = 1f;
+            col.radius = 2f;
             col.isTrigger = false;
             _fakeTrees.Add(canopy);
             created++;
@@ -1290,36 +1304,102 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         ResetPumaTreeCache(feiopar);
 
         Plugin.Log.LogInfo(
-            $"Feiopar: grew {created} dead trees for it to stalk from (EXPERIMENTAL — " +
-            "set [Integration] FeioparDeadTrees=false to disable).");
+            $"Feiopar: grew {created} dead trees (tagged 'Tree', layer 25, with collider + canopy) " +
+            "for it to stalk from. Set [Integration] FeioparDeadTrees=false to disable.");
     }
 
     private static Material _trunkMaterial;
+    private static Mesh _realTreeMesh;
+    private static Material _realTreeMaterial;
+    private static bool _realTreeSearched;
 
-    /// <summary>Adds a simple, collider-less dead-tree trunk under a tree node.</summary>
-    private static void AttachTrunkMesh(GameObject treeNode)
+    /// <summary>
+    /// Builds the visible dead-tree body as collider-less children of the tree
+    /// object. Prefers a real in-game tree mesh if one happens to be loaded;
+    /// otherwise assembles a procedural dead tree (trunk + a few branches).
+    /// </summary>
+    private static void AttachTreeVisual(GameObject tree)
     {
         try
         {
-            var trunk = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            trunk.name = "Trunk";
-            // Visual only — strip the collider so it never blocks agents/players.
-            var col = trunk.GetComponent<Collider>();
-            if (col != null)
-                Destroy(col);
-            trunk.transform.SetParent(treeNode.transform, worldPositionStays: false);
-            trunk.transform.localScale = new Vector3(0.35f, 2.2f, 0.35f); // ~0.7 m thick, ~4.4 m tall
-            trunk.transform.localPosition = new Vector3(0f, 2.2f, 0f);    // base at the node (floor)
+            if (TryAttachRealTree(tree))
+                return;
 
-            var renderer = trunk.GetComponent<Renderer>();
             var mat = GetTrunkMaterial();
-            if (renderer != null && mat != null)
-                renderer.sharedMaterial = mat;
+            AddBranch(tree, mat, new Vector3(0f, 2.2f, 0f), new Vector3(0.35f, 2.2f, 0.35f), Quaternion.identity);
+            // A few branches angled outward for a dead-tree silhouette.
+            AddBranch(tree, mat, new Vector3(0.35f, 3.6f, 0.1f), new Vector3(0.12f, 1.1f, 0.12f), Quaternion.Euler(0f, 0f, 55f));
+            AddBranch(tree, mat, new Vector3(-0.3f, 3.9f, -0.15f), new Vector3(0.1f, 1.0f, 0.1f), Quaternion.Euler(0f, 120f, -50f));
+            AddBranch(tree, mat, new Vector3(0.05f, 4.3f, 0.3f), new Vector3(0.09f, 0.9f, 0.09f), Quaternion.Euler(35f, 0f, 20f));
         }
         catch (Exception e)
         {
-            Plugin.DebugLog($"Could not build trunk mesh: {e.Message}");
+            Plugin.DebugLog($"Could not build tree visual: {e.Message}");
         }
+    }
+
+    private static void AddBranch(GameObject tree, Material mat, Vector3 localPos, Vector3 localScale, Quaternion localRot)
+    {
+        var branch = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        branch.name = "Branch";
+        var col = branch.GetComponent<Collider>();
+        if (col != null)
+            Destroy(col); // visual only
+        branch.transform.SetParent(tree.transform, worldPositionStays: false);
+        branch.transform.localPosition = localPos;
+        branch.transform.localRotation = localRot;
+        branch.transform.localScale = localScale;
+        var renderer = branch.GetComponent<Renderer>();
+        if (renderer != null && mat != null)
+            renderer.sharedMaterial = mat;
+    }
+
+    /// <summary>
+    /// Best-effort: reuse a real tree mesh+material if one is loaded in memory
+    /// (rare on the Company moon, so this usually falls back to procedural).
+    /// </summary>
+    private static bool TryAttachRealTree(GameObject tree)
+    {
+        if (!_realTreeSearched)
+        {
+            _realTreeSearched = true;
+            try
+            {
+                foreach (var mf in Resources.FindObjectsOfTypeAll<MeshFilter>())
+                {
+                    if (mf == null || mf.sharedMesh == null)
+                        continue;
+                    string n = (mf.sharedMesh.name + " " + mf.gameObject.name).ToLowerInvariant();
+                    if (n.Contains("tree") || n.Contains("leafless") || n.Contains("pine")
+                        || n.Contains("birch") || n.Contains("trunk"))
+                    {
+                        var rend = mf.GetComponent<MeshRenderer>();
+                        if (rend == null || rend.sharedMaterial == null)
+                            continue;
+                        _realTreeMesh = mf.sharedMesh;
+                        _realTreeMaterial = rend.sharedMaterial;
+                        Plugin.Log.LogInfo($"Feiopar: using real tree mesh '{mf.sharedMesh.name}' for visuals.");
+                        break;
+                    }
+                }
+                if (_realTreeMesh == null)
+                    Plugin.DebugLog("No real tree mesh loaded — using procedural dead trees.");
+            }
+            catch (Exception e)
+            {
+                Plugin.DebugLog($"Real-tree search failed: {e.Message}");
+            }
+        }
+
+        if (_realTreeMesh == null || _realTreeMaterial == null)
+            return false;
+
+        var vis = new GameObject("TreeMesh");
+        vis.transform.SetParent(tree.transform, worldPositionStays: false);
+        vis.transform.localPosition = Vector3.zero;
+        vis.AddComponent<MeshFilter>().sharedMesh = _realTreeMesh;
+        vis.AddComponent<MeshRenderer>().sharedMaterial = _realTreeMaterial;
+        return true;
     }
 
     /// <summary>

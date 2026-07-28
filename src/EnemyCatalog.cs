@@ -26,15 +26,16 @@ internal static class EnemyCatalog
                 "save load (see [Integration] VainShroudIterations), so enable Bush Wolf and reload " +
                 "the save / fly fresh — enabling it mid-round is too late for weed generation",
             ["Cadaver Growths"] =
-                "CadaverGrowthAI is a map-wide master that hard-requires a DunGen dungeon; on Gordion " +
-                "it logs 'Found no dungeon' and self-destructs. It cannot work here (the Company " +
-                "building is not a dungeon) and stays disabled — use Cadaver Bloom traps instead",
+                "Intentionally unsupported: CadaverGrowthAI hard-requires a DunGen dungeon, which the " +
+                "Company building is not (even BrutalCompanyMinus's own Cadaver event can't bypass it). " +
+                "Use Cadaver Bloom traps (CadaverBloomTraps) for a working cadaver on Gordion",
             ["Cadaver Bloom"] =
                 "Enabled via [Integration] CadaverBloomTraps: planted directly as standalone corpse " +
                 "traps that burst and chase when a player walks close, so no Growth/dungeon is needed",
             ["Feiopar"] =
-                "PumaAI only stalks from 'Tree' objects. With [Integration] FeioparDeadTrees the mod " +
-                "grows dead trees for it on the interior navmesh; it perches ~3 m up and jumps between them",
+                "PumaAI hunts from 'Tree'-tagged colliders on layer 25. With [Integration] " +
+                "FeioparDeadTrees the mod grows proper dead trees (tag + layer 25 collider + canopy) " +
+                "so it perches ~3 m up on a tree and pounces players who come near",
             ["Earth Leviathan"] =
                 "SandWormAI only emerges through natural ground, which the Company interior lacks. With " +
                 "[Balance] EarthLeviathanFloorEmerge the mod lets it breach up through the building floor",
