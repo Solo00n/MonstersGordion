@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.4
+
+- **Dead trees stand upright.** When reusing a real in-game tree mesh, the mesh's "up" axis
+  is baked into the source object's transform (LC tree meshes are authored Z-up), so applying
+  it with identity rotation laid it on its side. The mod now captures and applies the source's
+  world rotation and scale, normalises height to ~5 m, and drops the tree so its base sits on
+  the floor.
+- **Trees are placed in open spots.** Feiopar's ambush perch is ~4 m from the tree, so a tree
+  jammed against a wall put the perch behind it and the leopard pathed into a corner. Tree
+  spots now require open navmesh around them (6 of 8 surrounding probes) so the perch is
+  reachable.
+- The idle-nudge is unchanged and does not affect Feiopar (it is exempt as an ambusher); it
+  remains only a safety net for other enemies.
+
 ## 1.4.3
 
 - **Feiopar actually stalks now.** The dead trees were split across two objects, so PumaAI's

@@ -1264,7 +1264,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         int created = 0;
         for (int i = 0; i < count; i++)
         {
-            Vector3? point = _sampler.GetRandomPoint(0f, 15, 50);
+            Vector3? point = PickOpenTreePoint();
             if (point == null)
                 continue;
 
@@ -1308,9 +1308,41 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             "for it to stalk from. Set [Integration] FeioparDeadTrees=false to disable.");
     }
 
+    /// <summary>
+    /// A tree spot with open floor around it, so PumaAI's perch point (~4 m from
+    /// the tree, away from the player) lands on the navmesh instead of behind a
+    /// wall — which is what left Feiopar pathing into a corner. Requires navmesh
+    /// at most of 8 surrounding offsets; falls back to a plain point if none fit.
+    /// </summary>
+    private Vector3? PickOpenTreePoint()
+    {
+        Vector3? fallback = null;
+        for (int attempt = 0; attempt < 16; attempt++)
+        {
+            Vector3? p = _sampler.GetRandomPoint(0f, 12, 50);
+            if (p == null)
+                continue;
+            fallback ??= p;
+
+            int open = 0;
+            for (int a = 0; a < 8; a++)
+            {
+                float ang = a * Mathf.PI * 2f / 8f;
+                Vector3 probe = p.Value + new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * 4.5f;
+                if (NavMesh.SamplePosition(probe, out _, 1.5f, NavMesh.AllAreas))
+                    open++;
+            }
+            if (open >= 6)
+                return p;
+        }
+        return fallback;
+    }
+
     private static Material _trunkMaterial;
     private static Mesh _realTreeMesh;
     private static Material _realTreeMaterial;
+    private static Quaternion _realTreeRotation = Quaternion.identity;
+    private static Vector3 _realTreeScale = Vector3.one;
     private static bool _realTreeSearched;
 
     /// <summary>
@@ -1378,6 +1410,11 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
                             continue;
                         _realTreeMesh = mf.sharedMesh;
                         _realTreeMaterial = rend.sharedMaterial;
+                        // Capture the source's world orientation+scale: the mesh's
+                        // "up" is baked into the source transform (LC tree meshes are
+                        // often authored Z-up), so applying it upright needs these.
+                        _realTreeRotation = mf.transform.rotation;
+                        _realTreeScale = mf.transform.lossyScale;
                         Plugin.Log.LogInfo($"Feiopar: using real tree mesh '{mf.sharedMesh.name}' for visuals.");
                         break;
                     }
@@ -1396,9 +1433,24 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
 
         var vis = new GameObject("TreeMesh");
         vis.transform.SetParent(tree.transform, worldPositionStays: false);
-        vis.transform.localPosition = Vector3.zero;
-        vis.AddComponent<MeshFilter>().sharedMesh = _realTreeMesh;
-        vis.AddComponent<MeshRenderer>().sharedMaterial = _realTreeMaterial;
+        // Orient upright using the source's world rotation/scale (parent is identity).
+        vis.transform.rotation = _realTreeRotation;
+        vis.transform.localScale = _realTreeScale;
+        var mf2 = vis.AddComponent<MeshFilter>();
+        mf2.sharedMesh = _realTreeMesh;
+        var mr = vis.AddComponent<MeshRenderer>();
+        mr.sharedMaterial = _realTreeMaterial;
+
+        // Normalise size to ~5 m tall so it fits inside the building, then drop it
+        // so its base sits on the floor (the mesh pivot may be at its centre).
+        float height = mr.bounds.size.y;
+        if (height > 0.01f)
+        {
+            float k = Mathf.Clamp(5f / height, 0.05f, 5f);
+            vis.transform.localScale *= k;
+        }
+        float bottom = mr.bounds.min.y;
+        vis.transform.position += Vector3.up * (tree.transform.position.y - bottom);
         return true;
     }
 
