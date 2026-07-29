@@ -1288,7 +1288,10 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             trunkCol.height = 16f;
             trunkCol.center = new Vector3(0f, 8f, 0f);
             trunkCol.isTrigger = false;
-            AttachTreeVisual(tree);
+            // Upper floor is open (no ceiling) — grow big trees there; anything on a
+            // lower level stays shorter so it doesn't punch far through a ceiling.
+            float targetHeight = IsUpperFloor(point.Value) ? 14f : 8f;
+            AttachTreeVisual(tree, targetHeight);
             _fakeTrees.Add(tree);
 
             // Canopy collider — a SIBLING (not a child) so it stays active while
@@ -1314,36 +1317,58 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             "for it to stalk from. Set [Integration] FeioparDeadTrees=false to disable.");
     }
 
+    /// <summary>Upper (ship-landing) floor — open, no ceiling, so big trees fit.</summary>
+    private static bool IsUpperFloor(Vector3 point)
+    {
+        var sor = StartOfRound.Instance;
+        if (sor == null)
+            return true;
+        float splitY = sor.shipBounds != null ? sor.shipBounds.bounds.min.y - 3f
+            : (sor.shipLandingPosition != null ? sor.shipLandingPosition.position.y - 3f : point.y);
+        return point.y >= splitY;
+    }
+
     /// <summary>
-    /// A tree spot with open floor around it, so PumaAI's perch point (~4 m from
-    /// the tree, away from the player) lands on the navmesh instead of behind a
-    /// wall — which is what left Feiopar pathing into a corner. Requires navmesh
-    /// at most of 8 surrounding offsets; falls back to a plain point if none fit.
+    /// A tree spot that is: biased to the open upper floor, spaced apart from other
+    /// trees, clear of walls/props (so the trunk isn't inside geometry), and with
+    /// open floor around it so PumaAI's perch point (~4 m from the tree, away from
+    /// the player) is reachable. Falls back to the loosest candidate if perfect
+    /// spots run out.
     /// </summary>
     private Vector3? PickOpenTreePoint(List<Vector3> alreadyPlaced)
     {
-        const float minSpacing = 6f;
+        const float minSpacing = 5f;
+        int roomMask = StartOfRound.Instance != null
+            ? StartOfRound.Instance.collidersAndRoomMaskAndDefault
+            : Physics.DefaultRaycastLayers;
+
         Vector3? fallback = null;
-        for (int attempt = 0; attempt < 24; attempt++)
+        for (int attempt = 0; attempt < 40; attempt++)
         {
-            Vector3? p = _sampler.GetRandomPoint(0f, 12, 50);
+            // Strongly prefer the upper floor (open); the sampler falls back to the
+            // lower floor on its own if the upper tier is full.
+            Vector3? p = _sampler.GetRandomPoint(0f, 10, 90);
             if (p == null)
                 continue;
 
-            // Spread trees out so they don't cluster in one spot.
             bool tooClose = alreadyPlaced.Any(q => (q - p.Value).sqrMagnitude < minSpacing * minSpacing);
-            if (!tooClose)
+
+            // Reject spots where the trunk would sit inside a wall or prop.
+            bool insideObject = Physics.CheckSphere(p.Value + Vector3.up * 1.5f, 1.0f,
+                roomMask, QueryTriggerInteraction.Ignore);
+
+            if (!tooClose && !insideObject)
                 fallback ??= p;
 
             int open = 0;
             for (int a = 0; a < 8; a++)
             {
                 float ang = a * Mathf.PI * 2f / 8f;
-                Vector3 probe = p.Value + new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * 4.5f;
+                Vector3 probe = p.Value + new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * 4f;
                 if (NavMesh.SamplePosition(probe, out _, 1.5f, NavMesh.AllAreas))
                     open++;
             }
-            if (open >= 6 && !tooClose)
+            if (open >= 6 && !tooClose && !insideObject)
                 return p;
         }
         return fallback;
@@ -1361,19 +1386,25 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     /// object. Prefers a real in-game tree mesh if one happens to be loaded;
     /// otherwise assembles a procedural dead tree (trunk + a few branches).
     /// </summary>
-    private static void AttachTreeVisual(GameObject tree)
+    private static void AttachTreeVisual(GameObject tree, float targetHeight)
     {
         try
         {
-            if (TryAttachRealTree(tree))
+            if (TryAttachRealTree(tree, targetHeight))
                 return;
 
+            // Procedural dead tree built at ~4.4 m, scaled up to targetHeight.
+            var container = new GameObject("ProcTree");
+            container.transform.SetParent(tree.transform, worldPositionStays: false);
+            container.transform.localPosition = Vector3.zero;
+            container.transform.localScale = Vector3.one * (targetHeight / 4.4f);
+
             var mat = GetTrunkMaterial();
-            AddBranch(tree, mat, new Vector3(0f, 2.2f, 0f), new Vector3(0.35f, 2.2f, 0.35f), Quaternion.identity);
+            AddBranch(container, mat, new Vector3(0f, 2.2f, 0f), new Vector3(0.35f, 2.2f, 0.35f), Quaternion.identity);
             // A few branches angled outward for a dead-tree silhouette.
-            AddBranch(tree, mat, new Vector3(0.35f, 3.6f, 0.1f), new Vector3(0.12f, 1.1f, 0.12f), Quaternion.Euler(0f, 0f, 55f));
-            AddBranch(tree, mat, new Vector3(-0.3f, 3.9f, -0.15f), new Vector3(0.1f, 1.0f, 0.1f), Quaternion.Euler(0f, 120f, -50f));
-            AddBranch(tree, mat, new Vector3(0.05f, 4.3f, 0.3f), new Vector3(0.09f, 0.9f, 0.09f), Quaternion.Euler(35f, 0f, 20f));
+            AddBranch(container, mat, new Vector3(0.35f, 3.6f, 0.1f), new Vector3(0.12f, 1.1f, 0.12f), Quaternion.Euler(0f, 0f, 55f));
+            AddBranch(container, mat, new Vector3(-0.3f, 3.9f, -0.15f), new Vector3(0.1f, 1.0f, 0.1f), Quaternion.Euler(0f, 120f, -50f));
+            AddBranch(container, mat, new Vector3(0.05f, 4.3f, 0.3f), new Vector3(0.09f, 0.9f, 0.09f), Quaternion.Euler(35f, 0f, 20f));
         }
         catch (Exception e)
         {
@@ -1401,7 +1432,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     /// Best-effort: reuse a real tree mesh+material if one is loaded in memory
     /// (rare on the Company moon, so this usually falls back to procedural).
     /// </summary>
-    private static bool TryAttachRealTree(GameObject tree)
+    private static bool TryAttachRealTree(GameObject tree, float targetHeight)
     {
         if (!_realTreeSearched)
         {
@@ -1452,13 +1483,12 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         var mr = vis.AddComponent<MeshRenderer>();
         mr.sharedMaterial = _realTreeMaterial;
 
-        // Normalise to ~8 m tall so the visible top sits near where PumaAI perches
-        // (~8 m up), then drop it so its base is on the floor (mesh pivot may be
-        // at its centre).
+        // Normalise to the target height (tall on the open upper floor), then drop
+        // it so its base is on the floor (the mesh pivot may be at its centre).
         float height = mr.bounds.size.y;
         if (height > 0.01f)
         {
-            float k = Mathf.Clamp(8f / height, 0.05f, 8f);
+            float k = Mathf.Clamp(targetHeight / height, 0.05f, 20f);
             vis.transform.localScale *= k;
         }
         float bottom = mr.bounds.min.y;

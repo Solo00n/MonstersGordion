@@ -102,6 +102,12 @@ internal sealed class PluginConfig
     private readonly Dictionary<string, EnemySpawnSettings> _enemySettings =
         new(StringComparer.OrdinalIgnoreCase);
 
+    // Default per-type MaxSpawnCount. Deliberately high so no monster is capped
+    // below GlobalCap by default — users set a lower per-type value themselves if
+    // they want to limit a specific enemy. The 'max' fields in the table below are
+    // now only used as a legacy hint and no longer drive the default.
+    private const int MaxSpawnDefault = 40;
+
     // Known vanilla enemies, keyed by EnemyType.enemyName:
     // (enabled, weight, minCount, maxCount). Unknown/modded types fall back to
     // UnknownEnemyDefaults (disabled, so nothing unexpected enters the pool).
@@ -263,9 +269,10 @@ internal sealed class PluginConfig
             "the game validates against) so Feiopar can climb, stalk from ~3 m up, and pounce. " +
             "Ignored when Feiopar is disabled or absent.");
 
-        FeioparTreeCount = file.Bind("Integration", "FeioparTreeCount", 10,
-            new ConfigDescription("How many dead trees to grow for Feiopar to stalk and jump between.",
-                new AcceptableValueRange<int>(3, 24)));
+        FeioparTreeCount = file.Bind("Integration", "FeioparTreeCount", 14,
+            new ConfigDescription("How many dead trees to grow for Feiopar to stalk and jump between " +
+                "(placed mostly on the open upper floor).",
+                new AcceptableValueRange<int>(3, 30)));
 
         CadaverBloomTraps = file.Bind("Integration", "CadaverBloomTraps", true,
             "EXPERIMENTAL. Cadaver Bloom normally needs its map-wide Growth (which requires a dungeon " +
@@ -360,10 +367,13 @@ internal sealed class PluginConfig
                     new AcceptableValueRange<int>(0, 100))),
             MinSpawnCount = _file.Bind(section, "MinSpawnCount", d.min,
                 new ConfigDescription("The spawner tries to keep at least this many alive " +
-                    "(global cap permitting).", new AcceptableValueRange<int>(0, 20))),
-            MaxSpawnCount = _file.Bind(section, "MaxSpawnCount", d.max,
-                new ConfigDescription("Never allow more than this many alive at once.",
-                    new AcceptableValueRange<int>(0, 20))),
+                    "(global cap permitting).", new AcceptableValueRange<int>(0, 40))),
+            // Default is unrestricted (only GlobalCap limits the moon's population);
+            // set a lower value here if you want to cap a specific enemy type.
+            MaxSpawnCount = _file.Bind(section, "MaxSpawnCount", MaxSpawnDefault,
+                new ConfigDescription("Never allow more than this many of this type alive at once. " +
+                    "Defaults high so only GlobalCap limits the total — lower it to cap this type.",
+                    new AcceptableValueRange<int>(0, 40))),
         };
 
         _enemySettings[name] = settings;

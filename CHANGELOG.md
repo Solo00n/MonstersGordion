@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.0
+
+- **No per-monster cap by default.** Each type's `MaxSpawnCount` now defaults high (40), so only
+  `GlobalCap` limits the moon's population out of the box — set a lower `MaxSpawnCount` on a
+  specific enemy if you want to cap that type. `MinSpawnCount`/`MaxSpawnCount` ranges widened to 40.
+- **Feiopar's trees now grow tall on the open upper floor.** Trees are biased to the ship-landing
+  level (no ceiling there), where they're scaled up to ~14 m for a proper forest look; any on a
+  lower level stay ~8 m. More trees by default (14).
+- **Trees are scattered, not lined up, and never inside walls/props.** Placement now spaces trees
+  apart, rejects spots where the trunk would clip a wall or object, and keeps open floor around each
+  so Feiopar's perch stays reachable.
+
 ## 1.4.5
 
 - **Feiopar now actually leaps onto trees.** The real blocker (found in `PumaAI.StartLeapToTree`):
