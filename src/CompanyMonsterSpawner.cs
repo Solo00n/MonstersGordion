@@ -1288,10 +1288,10 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             trunkCol.height = 16f;
             trunkCol.center = new Vector3(0f, 8f, 0f);
             trunkCol.isTrigger = false;
-            // Upper floor is open (no ceiling) — grow big trees there; anything on a
-            // lower level stays shorter so it doesn't punch far through a ceiling.
-            float targetHeight = IsUpperFloor(point.Value) ? 14f : 8f;
-            AttachTreeVisual(tree, targetHeight);
+            // Trees live on the lower floor only (the upper level is a narrow edge
+            // strip where the leopard dropped over the side). Make them a touch
+            // taller down here.
+            AttachTreeVisual(tree, 10f);
             _fakeTrees.Add(tree);
 
             // Canopy collider — a SIBLING (not a child) so it stays active while
@@ -1317,17 +1317,6 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             "for it to stalk from. Set [Integration] FeioparDeadTrees=false to disable.");
     }
 
-    /// <summary>Upper (ship-landing) floor — open, no ceiling, so big trees fit.</summary>
-    private static bool IsUpperFloor(Vector3 point)
-    {
-        var sor = StartOfRound.Instance;
-        if (sor == null)
-            return true;
-        float splitY = sor.shipBounds != null ? sor.shipBounds.bounds.min.y - 3f
-            : (sor.shipLandingPosition != null ? sor.shipLandingPosition.position.y - 3f : point.y);
-        return point.y >= splitY;
-    }
-
     /// <summary>
     /// A tree spot that is: biased to the open upper floor, spaced apart from other
     /// trees, clear of walls/props (so the trunk isn't inside geometry), and with
@@ -1345,9 +1334,9 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         Vector3? fallback = null;
         for (int attempt = 0; attempt < 40; attempt++)
         {
-            // Strongly prefer the upper floor (open); the sampler falls back to the
-            // lower floor on its own if the upper tier is full.
-            Vector3? p = _sampler.GetRandomPoint(0f, 10, 90);
+            // Lower floor only — the upper level is a thin edge strip where trees
+            // lined up and the leopard dropped over the side.
+            Vector3? p = _sampler.GetRandomPoint(0f, 10, 0);
             if (p == null)
                 continue;
 

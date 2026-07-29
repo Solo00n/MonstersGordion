@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.2
+
+- **Feiopar's trees are now on the lower floor only** (and a touch taller). The upper level is a
+  thin edge strip where trees lined up and the leopard dropped over the side to a lower floor;
+  the roomy lower floor scatters them properly and there is no level below to fall through.
+
 ## 1.5.1
 
 - **Trees are no longer placed on ledge edges**, which is what let Feiopar drop/leap over the
