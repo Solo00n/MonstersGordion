@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.3
+
+- New icon and a rewritten mod page: a demo GIF at the top, a gameplay screenshot, a clearer
+  monster list and integration table. No gameplay changes.
+
 ## 1.5.2
 
 - **Feiopar's trees are now on the lower floor only** (and a touch taller). The upper level is a
