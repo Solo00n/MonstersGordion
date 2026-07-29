@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.5
+
+- **Feiopar now actually leaps onto trees.** The real blocker (found in `PumaAI.StartLeapToTree`):
+  before leaping it raycasts the tree's layer-25 collider upward and rejects the tree as "too
+  short" unless it reaches ~14 m — our collider was only 4 m, so every tree was rejected and the
+  leopard just ran in place underneath. The tree collider is now a tall thin capsule (16 m), which
+  passes the check and sets the perch near the top; the visible tree is scaled to ~8 m so its top
+  is near where the leopard sits.
+- **Trees are spread out** (minimum spacing) instead of clustering in one spot.
+
 ## 1.4.4
 
 - **Dead trees stand upright.** When reusing a real in-game tree mesh, the mesh's "up" axis

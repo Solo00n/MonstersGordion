@@ -1262,11 +1262,13 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
 
         int count = Plugin.Cfg.FeioparTreeCount.Value;
         int created = 0;
+        var placed = new List<Vector3>();
         for (int i = 0; i < count; i++)
         {
-            Vector3? point = PickOpenTreePoint();
+            Vector3? point = PickOpenTreePoint(placed);
             if (point == null)
                 continue;
+            placed.Add(point.Value);
 
             // The tree object: tagged "Tree", on layer 25, with a non-trigger
             // capsule collider — this single object is both the AllTreeNodes entry
@@ -1276,11 +1278,15 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             tree.transform.position = point.Value;
             try { tree.tag = "Tree"; }
             catch (Exception e) { Plugin.DebugLog($"Could not tag tree: {e.Message}"); }
+            // The collider must be TALL: PumaAI's leap check raycasts layer-25
+            // geometry upward and rejects the tree as "too short" unless it reaches
+            // ~14 m (StartLeapToTree, PumaAI L1430-1444). It also perches near the
+            // top, so a tall thin capsule both passes the check and sets the perch.
             var trunkCol = tree.AddComponent<CapsuleCollider>();
             trunkCol.direction = 1;          // Y-axis
-            trunkCol.radius = 0.4f;
-            trunkCol.height = 4f;
-            trunkCol.center = new Vector3(0f, 2f, 0f);
+            trunkCol.radius = 0.5f;
+            trunkCol.height = 16f;
+            trunkCol.center = new Vector3(0f, 8f, 0f);
             trunkCol.isTrigger = false;
             AttachTreeVisual(tree);
             _fakeTrees.Add(tree);
@@ -1314,15 +1320,20 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     /// wall — which is what left Feiopar pathing into a corner. Requires navmesh
     /// at most of 8 surrounding offsets; falls back to a plain point if none fit.
     /// </summary>
-    private Vector3? PickOpenTreePoint()
+    private Vector3? PickOpenTreePoint(List<Vector3> alreadyPlaced)
     {
+        const float minSpacing = 6f;
         Vector3? fallback = null;
-        for (int attempt = 0; attempt < 16; attempt++)
+        for (int attempt = 0; attempt < 24; attempt++)
         {
             Vector3? p = _sampler.GetRandomPoint(0f, 12, 50);
             if (p == null)
                 continue;
-            fallback ??= p;
+
+            // Spread trees out so they don't cluster in one spot.
+            bool tooClose = alreadyPlaced.Any(q => (q - p.Value).sqrMagnitude < minSpacing * minSpacing);
+            if (!tooClose)
+                fallback ??= p;
 
             int open = 0;
             for (int a = 0; a < 8; a++)
@@ -1332,7 +1343,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
                 if (NavMesh.SamplePosition(probe, out _, 1.5f, NavMesh.AllAreas))
                     open++;
             }
-            if (open >= 6)
+            if (open >= 6 && !tooClose)
                 return p;
         }
         return fallback;
@@ -1441,12 +1452,13 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         var mr = vis.AddComponent<MeshRenderer>();
         mr.sharedMaterial = _realTreeMaterial;
 
-        // Normalise size to ~5 m tall so it fits inside the building, then drop it
-        // so its base sits on the floor (the mesh pivot may be at its centre).
+        // Normalise to ~8 m tall so the visible top sits near where PumaAI perches
+        // (~8 m up), then drop it so its base is on the floor (mesh pivot may be
+        // at its centre).
         float height = mr.bounds.size.y;
         if (height > 0.01f)
         {
-            float k = Mathf.Clamp(5f / height, 0.05f, 5f);
+            float k = Mathf.Clamp(8f / height, 0.05f, 8f);
             vis.transform.localScale *= k;
         }
         float bottom = mr.bounds.min.y;
