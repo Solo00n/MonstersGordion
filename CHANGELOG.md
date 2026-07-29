@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.1
+
+- **Trees are no longer placed on ledge edges**, which is what let Feiopar drop/leap over the
+  side to a lower floor. A tree spot now requires solid navmesh at the tree's own height all the
+  way around it (4 m ring), keeping the leopard's perch and drop on the same level.
+
 ## 1.5.0
 
 - **No per-monster cap by default.** Each type's `MaxSpawnCount` now defaults high (40), so only

@@ -1357,21 +1357,35 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             bool insideObject = Physics.CheckSphere(p.Value + Vector3.up * 1.5f, 1.0f,
                 roomMask, QueryTriggerInteraction.Ignore);
 
-            if (!tooClose && !insideObject)
+            // Solid floor at the SAME level immediately around the trunk (4 m ring)
+            // keeps trees off ledge edges — where the leopard was dropping over the
+            // side to a lower floor. A wider 7 m ring adds room for the perch.
+            bool nearSolid = SameLevelFloorCount(p.Value, 4f) == 8;
+            bool farOpen = SameLevelFloorCount(p.Value, 7f) >= 6;
+
+            if (nearSolid && !tooClose && !insideObject)
                 fallback ??= p;
 
-            int open = 0;
-            for (int a = 0; a < 8; a++)
-            {
-                float ang = a * Mathf.PI * 2f / 8f;
-                Vector3 probe = p.Value + new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * 4f;
-                if (NavMesh.SamplePosition(probe, out _, 1.5f, NavMesh.AllAreas))
-                    open++;
-            }
-            if (open >= 6 && !tooClose && !insideObject)
+            if (nearSolid && farOpen && !tooClose && !insideObject)
                 return p;
         }
         return fallback;
+    }
+
+    /// <summary>How many of 8 compass directions at the radius have navmesh at
+    /// (roughly) the tree's own height — i.e. solid same-level floor, not an edge.</summary>
+    private static int SameLevelFloorCount(Vector3 center, float radius)
+    {
+        int n = 0;
+        for (int a = 0; a < 8; a++)
+        {
+            float ang = a * Mathf.PI * 2f / 8f;
+            Vector3 probe = center + new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * radius;
+            if (NavMesh.SamplePosition(probe, out NavMeshHit hit, 1.2f, NavMesh.AllAreas)
+                && Mathf.Abs(hit.position.y - center.y) <= 1.5f)
+                n++;
+        }
+        return n;
     }
 
     private static Material _trunkMaterial;
