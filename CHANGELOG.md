@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.4
+
+- New icon and a fully restyled mod page: bilingual English/Russian README matching the
+  standard layout used across these mods, with the demo GIF at the top and a complete
+  configuration table. No gameplay changes.
+
 ## 1.5.3
 
 - New icon and a rewritten mod page: a demo GIF at the top, a gameplay screenshot, a clearer
