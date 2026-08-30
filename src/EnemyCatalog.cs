@@ -134,6 +134,9 @@ internal static class EnemyCatalog
         foreach (var type in Enemies)
             Plugin.Cfg.For(type);
 
+        // Every enemy is bound now, so the one-time legacy cap migration is complete.
+        Plugin.Cfg.FinishLegacyCapMigration();
+
         Plugin.Log.LogInfo($"Enemy catalog resolved: {Enemies.Count} spawnable types " +
                            $"({rejected.Count} rejected).");
         LogSpawnabilityReport(rejected);

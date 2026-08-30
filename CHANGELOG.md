@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.5
+
+- **Old per-enemy caps no longer survive an upgrade.** 1.5.0 raised the default
+  `MaxSpawnCount` so only `GlobalCap` limits the moon, but BepInEx never overwrites values
+  that already exist in a config file — so anyone upgrading kept the old caps of 1-3 and saw,
+  for example, at most 2 Masked with `GlobalCap = 10`. The mod now performs a one-time
+  migration on first run: any `MaxSpawnCount` still sitting on its old per-enemy default is
+  raised to the new one, every change is logged, and values you tuned yourself are left alone.
+
 ## 1.5.4
 
 - New icon and a fully restyled mod page: bilingual English/Russian README matching the

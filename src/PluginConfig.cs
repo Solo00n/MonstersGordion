@@ -97,6 +97,7 @@ internal sealed class PluginConfig
     public readonly ConfigEntry<bool> TreatEnemiesAsOutside;
     public readonly ConfigEntry<float> MaintenanceInterval;
     public readonly ConfigEntry<ForeignEnemyPolicy> ForeignEnemies;
+    public readonly ConfigEntry<bool> LegacyCapsMigrated;
 
     private readonly ConfigFile _file;
     private readonly Dictionary<string, EnemySpawnSettings> _enemySettings =
@@ -337,6 +338,20 @@ internal sealed class PluginConfig
             "MoreEnemies...). Ignore = leave them; RemoveExcluded = despawn types listed in " +
             "ExcludedEnemies, so the blacklist applies to the whole moon no matter who spawned them; " +
             "RemoveNotEnabled = also despawn any type with Enabled = false.");
+
+        LegacyCapsMigrated = file.Bind("Advanced", "LegacyCapsMigrated", false,
+            "Set automatically. Older versions shipped a low per-enemy MaxSpawnCount (1-3), and " +
+            "BepInEx never overwrites values that already exist in a config file — so upgrading " +
+            "kept those caps and GlobalCap could not be reached. On first run the mod raises any " +
+            "MaxSpawnCount still sitting on its old default up to the new one and sets this to true, " +
+            "so it only ever happens once. Values you changed yourself are left alone.");
+    }
+
+    /// <summary>Marks the one-time legacy cap migration as done (called after all enemies bind).</summary>
+    public void FinishLegacyCapMigration()
+    {
+        if (!LegacyCapsMigrated.Value)
+            LegacyCapsMigrated.Value = true;
     }
 
     /// <summary>
@@ -375,6 +390,20 @@ internal sealed class PluginConfig
                     "Defaults high so only GlobalCap limits the total — lower it to cap this type.",
                     new AcceptableValueRange<int>(0, 40))),
         };
+
+        // One-time migration for configs written by older versions. Those shipped a
+        // low per-enemy cap (1-3) and BepInEx keeps existing values on upgrade, so the
+        // moon stayed capped far below GlobalCap. Only raise a value that still equals
+        // that enemy's OLD default — anything the user tuned themselves is untouched.
+        if (!LegacyCapsMigrated.Value
+            && d.max < MaxSpawnDefault
+            && settings.MaxSpawnCount.Value == d.max)
+        {
+            settings.MaxSpawnCount.Value = MaxSpawnDefault;
+            Plugin.Log.LogInfo(
+                $"Config migration: '{name}' MaxSpawnCount {d.max} -> {MaxSpawnDefault} " +
+                "(old per-enemy cap raised; GlobalCap is now the limit).");
+        }
 
         _enemySettings[name] = settings;
         return settings;
