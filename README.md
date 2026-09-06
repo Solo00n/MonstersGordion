@@ -4,7 +4,7 @@
 
 ![Lethal Company](https://img.shields.io/badge/Lethal%20Company-V81-cc0000?style=flat-square)
 ![BepInEx](https://img.shields.io/badge/BepInEx-5.4.21%2B-cc0000?style=flat-square)
-![Version](https://img.shields.io/badge/version-1.5.5-cc0000?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.6.0-cc0000?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-cc0000?style=flat-square)
 
 **Language / Язык:** [English](#english) · [Русский](#russian)
@@ -102,6 +102,13 @@ File: <code>BepInEx/config/Timofey.MonstersGordion.cfg</code> (created on first 
 <tr><td><code>ForeignEnemies</code></td><td><code>RemoveExcluded</code></td><td>Apply the list to enemies other mods spawn as well.</td></tr>
 <tr><td><code>CountForeignEnemies</code></td><td><code>true</code></td><td>Other mods' enemies count toward the caps.</td></tr>
 <tr><td><code>TreatEnemiesAsOutside</code></td><td><code>true</code></td><td>Required for enemies to be able to target players.</td></tr>
+<tr><td><code>EnableStockEvents</code></td><td><code>false</code></td><td>Let curated stock BrutalCompanyMinus events run on Gordion.</td></tr>
+<tr><td><code>StockEventWhitelist</code></td><td><code>Nothing, Gloomy, ...</code></td><td>Which stock events are allowed here; empty means the built-in list.</td></tr>
+<tr><td><code>EnableCustomEvents</code></td><td><code>false</code></td><td>Enable the events this mod writes itself for Gordion.</td></tr>
+<tr><td><code>MaskedHorde</code></td><td><code>true</code></td><td>Masked close in from both far edges of the map at once.</td></tr>
+<tr><td><code>HordeDelaySeconds</code></td><td><code>240</code></td><td>Seconds after landing before the horde arrives.</td></tr>
+<tr><td><code>HordeCountPerSide</code></td><td><code>5</code></td><td>Masked spawned at each of the two edges.</td></tr>
+<tr><td><code>AnnounceEvents</code></td><td><code>true</code></td><td>Announce the chosen event in chat.</td></tr>
 </table>
 
 <blockquote style="border-left: 4px solid #cc0000; padding-left: 15px;">
@@ -112,7 +119,8 @@ Every spawnable enemy also gets its own section — <code>[Enemy.Flowerman]</cod
 
 - <strong style="color: #cc0000;">ToilHead</strong> — per-enemy turret chances for Coil-Head, Manticoil and Masked, including the Slayer variants.
 - <strong style="color: #cc0000;">StarlancerAIFix</strong> — detected automatically; its AI fix applies to spawned enemies, and this mod's interior node assignment runs afterwards.
-- <strong style="color: #cc0000;">BrutalCompanyMinus (ExtraReborn)</strong> — shares one enemy budget through <code>CountForeignEnemies</code>, so the two never stack past your cap.
+- <strong style="color: #cc0000;">BrutalCompanyMinus (ExtraReborn)</strong> — shares one enemy budget through <code>CountForeignEnemies</code>, so the two never stack past your cap. It also brings its events to Gordion, which BCMER itself never does: its level hook returns early on this moon, so no config key, no per-event moon whitelist and not even the <code>MEVENT</code> command can trigger one here. With <code>EnableStockEvents</code> the mod rolls one event per landing from a curated list of events that can actually work without a dungeon, and hands it back to BCMER to run — your BCMER config still decides everything, from the per-event enable flag to the event type weights.
+- <strong style="color: #cc0000;">WeatherGordion</strong> — required for the <code>AllWeather</code> event. That event refuses to run unless the moon has at least three weathers in its pool, and Gordion's pool is empty in vanilla; WeatherGordion is what fills it. Without it the event declines itself and says so in the log.
 - All integrations are resolved at runtime by reflection, so the mod runs with or without them and never hard-depends on their versions.
 - Modded enemies appear in the config automatically but stay disabled until you enable them.
 
@@ -221,6 +229,13 @@ Output: <code>bin/Release/netstandard2.1/MonstersGordion.dll</code>. Game assemb
 <tr><td><code>ForeignEnemies</code></td><td><code>RemoveExcluded</code></td><td>Применять список и к врагам, которых спавнят другие моды.</td></tr>
 <tr><td><code>CountForeignEnemies</code></td><td><code>true</code></td><td>Враги других модов учитываются в лимитах.</td></tr>
 <tr><td><code>TreatEnemiesAsOutside</code></td><td><code>true</code></td><td>Обязательно, чтобы враги могли выбирать игроков целью.</td></tr>
+<tr><td><code>EnableStockEvents</code></td><td><code>false</code></td><td>Разрешить отобранным штатным ивентам BrutalCompanyMinus идти на Гордионе.</td></tr>
+<tr><td><code>StockEventWhitelist</code></td><td><code>Nothing, Gloomy, ...</code></td><td>Какие штатные ивенты здесь допущены; пусто — встроенный список.</td></tr>
+<tr><td><code>EnableCustomEvents</code></td><td><code>false</code></td><td>Включить ивенты, написанные этим модом специально под Гордион.</td></tr>
+<tr><td><code>MaskedHorde</code></td><td><code>true</code></td><td>Мимики заходят разом с двух дальних краёв карты.</td></tr>
+<tr><td><code>HordeDelaySeconds</code></td><td><code>240</code></td><td>Через сколько секунд после посадки приходит орда.</td></tr>
+<tr><td><code>HordeCountPerSide</code></td><td><code>5</code></td><td>Сколько мимиков появится у каждого из двух краёв.</td></tr>
+<tr><td><code>AnnounceEvents</code></td><td><code>true</code></td><td>Объявлять выбранный ивент в чате.</td></tr>
 </table>
 
 <blockquote style="border-left: 4px solid #cc0000; padding-left: 15px;">
@@ -231,7 +246,8 @@ Output: <code>bin/Release/netstandard2.1/MonstersGordion.dll</code>. Game assemb
 
 - <strong style="color: #cc0000;">ToilHead</strong> — отдельные шансы турели для Coil-Head, Manticoil и Masked, включая варианты Slayer.
 - <strong style="color: #cc0000;">StarlancerAIFix</strong> — определяется автоматически; его фикс применяется к заспавненным врагам, а назначение интерьерных нод этим модом выполняется после него.
-- <strong style="color: #cc0000;">BrutalCompanyMinus (ExtraReborn)</strong> — делит общий лимит врагов через <code>CountForeignEnemies</code>, поэтому суммарная популяция не превысит ваш кап.
+- <strong style="color: #cc0000;">BrutalCompanyMinus (ExtraReborn)</strong> — делит общий лимит врагов через <code>CountForeignEnemies</code>, поэтому суммарная популяция не превысит ваш кап. А ещё приводит на Гордион свои ивенты, чего сам BCMER не делает никогда: его хук уровня выходит на этой луне досрочно, поэтому здесь бессильны и настройки, и белые списки лун у ивентов, и даже команда <code>MEVENT</code>. При <code>EnableStockEvents</code> мод раз за высадку разыгрывает один ивент из отобранного списка тех, что работают без подземелья, и передаёт его обратно BCMER на исполнение — все решения по-прежнему за вашим конфигом BCMER, от галочки у ивента до весов типов.
+- <strong style="color: #cc0000;">WeatherGordion</strong> — нужен для ивента <code>AllWeather</code>. Тот отказывается работать, если в пуле луны меньше трёх погод, а у Гордиона он в ванили пуст; наполняет его именно WeatherGordion. Без него ивент отклоняет сам себя и пишет об этом в лог.
 - Все интеграции определяются в рантайме через рефлексию, поэтому мод работает и с ними, и без них, и не привязан жёстко к их версиям.
 - Модовые враги появляются в конфиге автоматически, но остаются выключенными, пока вы сами их не включите.
 

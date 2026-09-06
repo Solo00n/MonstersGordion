@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using HarmonyLib;
 
 namespace MonstersGordion.Patches;
@@ -35,7 +35,7 @@ internal static class MoldSpreadPatches
 
             foreach (SelectableLevel level in __instance.levels)
             {
-                if (level == null || !IsCompanyLevel(level))
+                if (level == null || !CompanyMonsterSpawner.IsCompanyLevel(level))
                     continue;
 
                 if (iterations <= 0)
@@ -63,9 +63,4 @@ internal static class MoldSpreadPatches
             Plugin.Log.LogError($"Vain shroud setup failed: {e}");
         }
     }
-
-    private static bool IsCompanyLevel(SelectableLevel level) =>
-        level.sceneName == "CompanyBuilding"
-        || level.levelID == 3
-        || (level.PlanetName != null && level.PlanetName.Contains("Gordion"));
 }

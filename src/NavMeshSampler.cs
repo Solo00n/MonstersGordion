@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
@@ -35,6 +35,11 @@ internal sealed class NavMeshSampler
             CumulativeAreas.Add(TotalArea);
         }
     }
+
+    // Edge sampling: how much of each end of the walkable area counts as "the
+    // edge", and how far apart points there must sit.
+    private const float EdgeSliceFraction = 0.2f;
+    private const float EdgeSpacing = 3f;
 
     private readonly bool _requireIndoor;
     private readonly int _roofMask;
@@ -224,26 +229,119 @@ internal sealed class NavMeshSampler
                 tier = wantUpper ? _lower : _upper;
 
             Vector3 candidate = RandomPointInTriangle(tier);
-
-            if (!NavMesh.SamplePosition(candidate, out NavMeshHit hit, 3f, NavMesh.AllAreas))
-                continue;
-            Vector3 point = hit.position;
-
-            if (IsInsideShip(point))
-                continue;
-            if (_requireIndoor && !HasCeilingAbove(point))
-                continue;
-            if (minPlayerDistance > 0f && IsTooCloseToAnyPlayer(point, minPlayerDistance))
-                continue;
-            if (!IsReachable(point))
-            {
-                Plugin.DebugLog($"Rejected unreachable point {point:F1}.");
-                continue;
-            }
-
-            return point;
+            if (TryValidate(candidate, minPlayerDistance, out Vector3 point))
+                return point;
         }
         return null;
+    }
+
+    /// <summary>
+    /// Spawn points at the two opposite extremes of the walkable area, along
+    /// whichever horizontal axis it is widest on — the left and right edges of
+    /// the map as a player reads them.
+    ///
+    /// The axis and the extents come from the navmesh at runtime instead of being
+    /// hardcoded, so moon overhaul mods that reshape the outdoor area (or let the
+    /// player switch its borders off) cannot strand the points in geometry.
+    /// Points are validated exactly like GetRandomPoint's, reachability included,
+    /// so whatever spawns here can always path to the players.
+    /// </summary>
+    public bool TryGetOppositeEdgePoints(int perSide, float minPlayerDistance,
+                                         out List<Vector3> sideA, out List<Vector3> sideB)
+    {
+        sideA = new List<Vector3>();
+        sideB = new List<Vector3>();
+        if (perSide <= 0)
+            return false;
+
+        var tris = new List<((int a, int b, int c) tri, Vector3 centroid)>();
+        float minX = float.MaxValue, maxX = float.MinValue;
+        float minZ = float.MaxValue, maxZ = float.MinValue;
+        foreach (var tier in new[] { _upper, _lower })
+        {
+            foreach ((int a, int b, int c) tri in tier.Triangles)
+            {
+                Vector3 centroid = (_vertices[tri.a] + _vertices[tri.b] + _vertices[tri.c]) / 3f;
+                if (centroid.x < minX) minX = centroid.x;
+                if (centroid.x > maxX) maxX = centroid.x;
+                if (centroid.z < minZ) minZ = centroid.z;
+                if (centroid.z > maxZ) maxZ = centroid.z;
+                tris.Add((tri, centroid));
+            }
+        }
+
+        if (tris.Count < 2)
+            return false;
+
+        bool useX = maxX - minX >= maxZ - minZ;
+        tris.Sort((l, r) => (useX ? l.centroid.x : l.centroid.z)
+            .CompareTo(useX ? r.centroid.x : r.centroid.z));
+
+        // Outermost fifth of the walkable area at each end, so points scatter along
+        // the edge instead of piling onto the single most extreme triangle.
+        int slice = Mathf.Clamp(Mathf.RoundToInt(tris.Count * EdgeSliceFraction), 1, tris.Count / 2);
+
+        FillEdge(tris, 0, slice, perSide, minPlayerDistance, sideA);
+        FillEdge(tris, tris.Count - slice, tris.Count, perSide, minPlayerDistance, sideB);
+
+        Plugin.DebugLog(
+            $"Edge sampling on {(useX ? "X" : "Z")} axis, span " +
+            $"{(useX ? maxX - minX : maxZ - minZ):F0} m over {tris.Count} triangles " +
+            $"(slice {slice}): got {sideA.Count} + {sideB.Count} of {perSide} per side.");
+
+        return sideA.Count > 0 && sideB.Count > 0;
+    }
+
+    /// <summary>Fills one edge's list from the triangle range [from, to).</summary>
+    private void FillEdge(List<((int a, int b, int c) tri, Vector3 centroid)> tris,
+                          int from, int to, int wanted, float minPlayerDistance,
+                          List<Vector3> into)
+    {
+        int attempts = wanted * 12;
+        for (int i = 0; i < attempts && into.Count < wanted; i++)
+        {
+            var tri = tris[UnityEngine.Random.Range(from, to)].tri;
+            if (!TryValidate(RandomPointInTriangle(tri), minPlayerDistance, out Vector3 point))
+                continue;
+
+            bool crowded = false;
+            foreach (Vector3 taken in into)
+            {
+                if ((taken - point).sqrMagnitude < EdgeSpacing * EdgeSpacing)
+                {
+                    crowded = true;
+                    break;
+                }
+            }
+            if (!crowded)
+                into.Add(point);
+        }
+    }
+
+    /// <summary>
+    /// Snaps a sampled position onto the navmesh and applies every placement rule:
+    /// off the ship, under a ceiling when indoor-only, clear of players, and with
+    /// a complete path to the anchor.
+    /// </summary>
+    private bool TryValidate(Vector3 candidate, float minPlayerDistance, out Vector3 point)
+    {
+        point = candidate;
+        if (!NavMesh.SamplePosition(candidate, out NavMeshHit hit, 3f, NavMesh.AllAreas))
+            return false;
+        point = hit.position;
+
+        if (IsInsideShip(point))
+            return false;
+        if (_requireIndoor && !HasCeilingAbove(point))
+            return false;
+        if (minPlayerDistance > 0f && IsTooCloseToAnyPlayer(point, minPlayerDistance))
+            return false;
+        if (!IsReachable(point))
+        {
+            Plugin.DebugLog($"Rejected unreachable point {point:F1}.");
+            return false;
+        }
+        return true;
     }
 
     /// <summary>A complete walkable path must exist from the point to the anchor.</summary>
@@ -254,6 +352,15 @@ internal sealed class NavMeshSampler
         _pathCache.ClearCorners();
         return NavMesh.CalculatePath(point, _anchor.Value, NavMesh.AllAreas, _pathCache)
             && _pathCache.status == NavMeshPathStatus.PathComplete;
+    }
+
+    private Vector3 RandomPointInTriangle((int a, int b, int c) triangle)
+    {
+        float r1 = Mathf.Sqrt(UnityEngine.Random.value);
+        float r2 = UnityEngine.Random.value;
+        return _vertices[triangle.a] * (1f - r1)
+             + _vertices[triangle.b] * (r1 * (1f - r2))
+             + _vertices[triangle.c] * (r1 * r2);
     }
 
     private Vector3 RandomPointInTriangle(Tier tier)

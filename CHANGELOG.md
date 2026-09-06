@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.6.0
+
+- **BrutalCompanyMinus events now happen on Gordion.** BCMER never ran a single event on the
+  Company moon, and no setting could change that: its `LoadNewLevel` hook returns early on this
+  moon, before the event roll is reached, so the moon blacklist, the per-event moon whitelists
+  and even the `MEVENT` terminal command were all bypassed. The mod now performs the roll
+  itself and hands the chosen event back to BCMER to execute.
+- **Only events that can actually work here are eligible.** The moon has no dungeon, no scrap
+  generation, and BCMER skips its own enemy-list snapshot pass on it — so any event that edits
+  the level's enemy lists would change them with nothing to restore from. The curated default
+  list is therefore built from events that touch none of that: `Nothing`, `Gloomy`, `Meteors`,
+  `OutsideLandmines`, `OutsideTurrets`, `Warzone` and `AllWeather`. Edit `StockEventWhitelist`
+  to narrow or widen it.
+- **Your BCMER config is always obeyed.** An event is skipped when its `Event Enabled?` is off,
+  when its type has weight 0 in `Difficulty_Settings.cfg`, when it is a Special or Beta event
+  you have not enabled, when its moon lists exclude Gordion, or when its own `AddEventIfOnly()`
+  check fails. Every skip is logged with the reason, so a no-show is never a mystery.
+- **New event, Masked Horde.** After a long stay on the moon, a group of Masked closes in from
+  both far edges of the map at once. The edges are derived from the navmesh at runtime rather
+  than hardcoded, so moon overhaul mods that reshape the outdoor area cannot strand them. It
+  ignores `GlobalCap` on purpose — a horde a cap could shave down to two would not be one.
+- **WeatherGordion makes `AllWeather` possible.** That event requires at least three weathers in
+  the moon's pool, and Gordion's is empty in vanilla. WeatherGordion fills it; without that mod
+  the event politely declines itself and says why.
+- Both event groups are off by default (`EnableStockEvents`, `EnableCustomEvents`).
+
 ## 1.5.5
 
 - **Old per-enemy caps no longer survive an upgrade.** 1.5.0 raised the default

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using BepInEx.Configuration;
@@ -77,6 +77,28 @@ internal sealed class PluginConfig
         _ => 0,
     };
 
+    /// <summary>
+    /// The stock BCMER event names allowed on this moon, resolving the
+    /// "empty = use the built-in list" default. Order is preserved so the log
+    /// reads the same way the config does.
+    /// </summary>
+    public List<string> ResolveStockEventWhitelist()
+    {
+        string raw = StockEventWhitelist.Value;
+        if (string.IsNullOrWhiteSpace(raw))
+            raw = DefaultStockEvents;
+
+        var names = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string part in raw.Split(','))
+        {
+            string name = part.Trim();
+            if (name.Length > 0 && seen.Add(name))
+                names.Add(name);
+        }
+        return names;
+    }
+
     /// <summary>Iterations to actually use, resolving the "0 = automatic" default.</summary>
     public int ResolveVainShroudIterations()
     {
@@ -84,6 +106,15 @@ internal sealed class PluginConfig
             return VainShroudIterations.Value;
         return ForName("Bush Wolf").Enabled.Value ? 12 : 0;
     }
+
+    // [BrutalCompany]
+    public readonly ConfigEntry<bool> EnableStockEvents;
+    public readonly ConfigEntry<string> StockEventWhitelist;
+    public readonly ConfigEntry<bool> EnableCustomEvents;
+    public readonly ConfigEntry<bool> MaskedHorde;
+    public readonly ConfigEntry<int> HordeDelaySeconds;
+    public readonly ConfigEntry<int> HordeCountPerSide;
+    public readonly ConfigEntry<bool> AnnounceEvents;
 
     // [Advanced]
     public readonly ConfigEntry<bool> DespawnOnShipLeave;
@@ -107,6 +138,13 @@ internal sealed class PluginConfig
     // below GlobalCap by default — users set a lower per-type value themselves if
     // they want to limit a specific enemy. The 'max' fields in the table below are
     // now only used as a legacy hint and no longer drive the default.
+    // Stock BCMER events that can actually work on this moon. The rule behind the
+    // list: no dungeon, no scrap generation, and - most importantly - nothing that
+    // edits the level's enemy lists, since BCMER skips its own snapshot pass here
+    // and would have nothing to restore them from. Monsters are this mod's job.
+    private const string DefaultStockEvents =
+        "Nothing, Gloomy, Meteors, OutsideLandmines, OutsideTurrets, Warzone, AllWeather";
+
     private const int MaxSpawnDefault = 40;
 
     // Known vanilla enemies, keyed by EnemyType.enemyName:
@@ -284,6 +322,41 @@ internal sealed class PluginConfig
         CadaverBloomTriggerRange = file.Bind("Integration", "CadaverBloomTriggerRange", 4f,
             new ConfigDescription("How close a player must get (meters) for a planted Cadaver Bloom to burst.",
                 new AcceptableValueRange<float>(1.5f, 12f)));
+
+        EnableStockEvents = file.Bind("BrutalCompany", "EnableStockEvents", false,
+            "Let a curated set of stock BrutalCompanyMinusExtraReborn events run on the Company " +
+            "moon. BCMER itself skips this moon entirely (its LoadNewLevel prefix returns early on " +
+            "levelID 3), so nothing here happens without this mod. Only events that do not touch the " +
+            "level's enemy lists are eligible, because BCMER never snapshots those on this moon and " +
+            "could not restore them. Your BCMER config is always obeyed: an event that is disabled, " +
+            "whose type has weight 0, or whose moon lists exclude Gordion, will not run.");
+
+        StockEventWhitelist = file.Bind("BrutalCompany", "StockEventWhitelist", DefaultStockEvents,
+            "Comma-separated BCMER event names allowed on the Company moon, checked against your " +
+            "BCMER config before each landing. Empty means the built-in list. Extra candidates you " +
+            "can add at your own risk: Trees, LeaflessTrees, LeaflessBrownTrees (they place props " +
+            "outdoors and pair well with Feiopar's tree hunting).");
+
+        EnableCustomEvents = file.Bind("BrutalCompany", "EnableCustomEvents", false,
+            "Enable the events this mod makes itself for the Company moon. These are written against " +
+            "the moon's actual conditions, so unlike most stock events they are known to work here.");
+
+        MaskedHorde = file.Bind("BrutalCompany", "MaskedHorde", true,
+            "Custom event 'Masked Horde': after a long stay on the moon, a group of Masked closes in " +
+            "from both far edges of the map at once. Requires EnableCustomEvents.");
+
+        HordeDelaySeconds = file.Bind("BrutalCompany", "HordeDelaySeconds", 240,
+            new ConfigDescription("Seconds after landing before the Masked Horde arrives. Real time, " +
+                "so it behaves the same whether or not a mod runs the clock on this moon.",
+                new AcceptableValueRange<int>(30, 1800)));
+
+        HordeCountPerSide = file.Bind("BrutalCompany", "HordeCountPerSide", 5,
+            new ConfigDescription("Masked spawned at each of the two edges. The horde deliberately " +
+                "ignores GlobalCap - that is what makes it a horde.",
+                new AcceptableValueRange<int>(1, 20)));
+
+        AnnounceEvents = file.Bind("BrutalCompany", "AnnounceEvents", true,
+            "Announce the chosen event in chat, the way BrutalCompanyMinus announces its own.");
 
         DespawnOnShipLeave = file.Bind("Advanced", "DespawnOnShipLeave", true,
             "Despawn enemies created by this mod when the ship leaves the Company moon.");

@@ -1,4 +1,4 @@
-using BepInEx;
+﻿using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
 using MonstersGordion.Compat;
@@ -34,6 +34,7 @@ public class Plugin : BaseUnityPlugin
         _harmony.PatchAll(typeof(StartOfRoundPatches));
         _harmony.PatchAll(typeof(EnemyAIPatches));
         _harmony.PatchAll(typeof(MoldSpreadPatches));
+        _harmony.PatchAll(typeof(RoundManagerPatches));
 
         LandingWatcher.Create();
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,8 +43,12 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     private const float StuckSeconds = 25f;
     private const float StuckDistance = 1.5f;
     private NavMeshSampler _sampler;
+    // Grace period after landing before the event announcement, so the HUD exists.
+    private const float AnnounceDelay = 3f;
+
     private Coroutine _loop;
     private Coroutine _maintenance;
+    private Coroutine _events;
     private bool _shuttingDown;
     private bool _hasVainShrouds;
     private readonly HashSet<string> _warnedRequirements = new(StringComparer.OrdinalIgnoreCase);
@@ -54,6 +58,12 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     internal static bool IsCompanyLevel()
     {
         var level = StartOfRound.Instance != null ? StartOfRound.Instance.currentLevel : null;
+        return IsCompanyLevel(level);
+    }
+
+    /// <summary>The Company moon test, for callers holding a level directly.</summary>
+    internal static bool IsCompanyLevel(SelectableLevel level)
+    {
         if (level == null)
             return false;
         return level.sceneName == "CompanyBuilding"
@@ -144,6 +154,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         EnableWormFloorEmergeIfNeeded();
         _loop = StartCoroutine(SpawnLoop());
         _maintenance = StartCoroutine(MaintenanceLoop());
+        _events = StartCoroutine(EventLoop());
         Plugin.Log.LogInfo(
             $"Company spawner active: cap={cfg.GlobalCap.Value}, " +
             $"interval=[{cfg.MinSpawnInterval.Value:F0}s..{cfg.MaxSpawnInterval.Value:F0}s], " +
@@ -170,6 +181,14 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             StopCoroutine(_maintenance);
             _maintenance = null;
         }
+
+        if (_events != null)
+        {
+            StopCoroutine(_events);
+            _events = null;
+        }
+
+        GordionEvents.Reset();
 
         try
         {
@@ -830,7 +849,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
 
     // ---------------------------------------------------------------- spawning
 
-    private void SpawnEnemy(EnemyType type, Vector3 point)
+    internal void SpawnEnemy(EnemyType type, Vector3 point)
     {
         var cfg = Plugin.Cfg;
         try
@@ -955,6 +974,86 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         GameObject[] nodes = _aiNodes.Where(n => n != null).ToArray();
         if (nodes.Length > 0)
             ai.allAINodes = nodes;
+    }
+
+    // -------------------------------------------------------------------- events
+
+    /// <summary>
+    /// Drives this landing's Company-moon event: announces whatever was rolled at
+    /// level load, then, if the Masked Horde was the one chosen, waits out its
+    /// delay and runs it.
+    /// </summary>
+    private IEnumerator EventLoop()
+    {
+        // Let the HUD settle before talking into chat.
+        yield return new WaitForSeconds(AnnounceDelay);
+        GordionEvents.AnnouncePending();
+
+        if (!GordionEvents.HordeArmed)
+            yield break;
+
+        float delay = Mathf.Max(1f, Plugin.Cfg.HordeDelaySeconds.Value - AnnounceDelay);
+        Plugin.DebugLog($"Masked Horde armed, arriving in {delay:F0}s.");
+        yield return new WaitForSeconds(delay);
+
+        yield return RunMaskedHorde();
+    }
+
+    /// <summary>
+    /// The Masked Horde: a group closes in from each of the two far edges of the
+    /// walkable area at once.
+    ///
+    /// It spawns through SpawnEnemy, which deliberately does not consult
+    /// GlobalCap — that check lives in TrySpawnCycle and governs the ordinary
+    /// trickle. A horde a cap could shave down to two would not be a horde.
+    /// </summary>
+    private IEnumerator RunMaskedHorde()
+    {
+        EnemyType masked = EnemyCatalog.Enemies.FirstOrDefault(
+            e => string.Equals(e.enemyName, "Masked", StringComparison.OrdinalIgnoreCase));
+        if (masked == null)
+        {
+            Plugin.Log.LogWarning("Masked Horde: no 'Masked' enemy type in the pool — skipping.");
+            yield break;
+        }
+
+        if (_sampler == null)
+        {
+            Plugin.Log.LogWarning("Masked Horde: no navmesh sample available — skipping.");
+            yield break;
+        }
+
+        int perSide = Mathf.Max(1, Plugin.Cfg.HordeCountPerSide.Value);
+        float minDistance = Plugin.Cfg.MinDistanceFromPlayers.Value;
+
+        // Prefer keeping clear of players, but a horde that fails to arrive because
+        // someone happens to stand at the edge would be worse than a close spawn.
+        List<Vector3> sideA, sideB;
+        if (!_sampler.TryGetOppositeEdgePoints(perSide, minDistance, out sideA, out sideB)
+            && !_sampler.TryGetOppositeEdgePoints(perSide, 0f, out sideA, out sideB))
+        {
+            Plugin.Log.LogWarning(
+                "Masked Horde: could not find usable points at both edges of the map — skipping. " +
+                "On a heavily reshaped Company moon the walkable area can be too fragmented for this.");
+            yield break;
+        }
+
+        GordionEvents.AnnounceMaskedHorde();
+        Plugin.Log.LogInfo(
+            $"Masked Horde: spawning {sideA.Count} + {sideB.Count} Masked at opposite map edges.");
+
+        // Alternating, one per frame, so both flanks arrive together and a
+        // ten-strong burst never lands in a single frame.
+        int most = Mathf.Max(sideA.Count, sideB.Count);
+        for (int i = 0; i < most; i++)
+        {
+            if (i < sideA.Count)
+                SpawnEnemy(masked, sideA[i]);
+            yield return null;
+            if (i < sideB.Count)
+                SpawnEnemy(masked, sideB[i]);
+            yield return null;
+        }
     }
 
     // ---------------------------------------------------------------- maintenance
