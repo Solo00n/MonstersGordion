@@ -45,8 +45,6 @@ internal static class BcmeCompat
     private static MethodInfo _isBeta;
     private static MethodInfo _onBlacklist;
     private static MethodInfo _onWhitelist;
-    private static MethodInfo _getColorHex;
-    private static MethodInfo _getDescriptions;
 
     // MEvent.* — public instance members on the returned event object.
     private static MethodInfo _mEventName;
@@ -57,6 +55,20 @@ internal static class BcmeCompat
     // EventManager.currentEvents — the list BCMER's own UI and third-party
     // overlays read to show what is happening this round.
     private static FieldInfo _currentEventsField;
+
+    // The two queues outdoor-object events fill. BCMER drains them from a postfix
+    // on RoundManager.FinishGeneratingLevel, which the game only ever calls inside
+    // "if (currentLevel.spawnEnemiesAndScrap)" — false on the Company moon. So the
+    // queues are filled here and never emptied, and the mod places them instead.
+    private static FieldInfo _hazardQueueField;      // Manager.insideObjectsToSpawnOutside
+    private static FieldInfo _objectInfoObj;         // Manager.ObjectInfo.obj
+    private static FieldInfo _objectInfoDensity;     // Manager.ObjectInfo.density
+    private static FieldInfo _netInstanceField;      // Net.Instance
+    private static FieldInfo _propQueueField;        // Net.outsideObjectsToSpawn
+    private static FieldInfo _propDensity;           // OutsideObjectsToSpawnMethod.density
+    private static FieldInfo _propEnumId;            // OutsideObjectsToSpawnMethod.objectEnumID
+    private static MethodInfo _assetsGetObject;      // Assets.GetObject(ObjectName)
+    private static Type _objectNameEnum;
 
     /// <summary>Any BrutalCompanyMinus flavour is loaded.</summary>
     public static bool Present { get; private set; }
@@ -149,8 +161,6 @@ internal static class BcmeCompat
         _isBeta          = FindApi(api, "IsEventBeta");
         _onBlacklist     = FindApi(api, "IsEventOnBlacklist");
         _onWhitelist     = FindApi(api, "IsEventOnWhitelist");
-        _getColorHex     = FindApi(api, "GetEventColorHex");
-        _getDescriptions = FindApi(api, "GetEventDescriptions");
 
         _mEventName      = mEvent.GetMethod("Name", Type.EmptyTypes);
         _mEventExecute   = mEvent.GetMethod("Execute", Type.EmptyTypes);
@@ -165,6 +175,8 @@ internal static class BcmeCompat
                 BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
             break;
         }
+
+        BindHazardQueues(assembly);
 
         Plugin.Log.LogInfo(
             $"BCMER event API bound (assembly via {how}). " +
@@ -246,38 +258,6 @@ internal static class BcmeCompat
             return _getType.Invoke(null, new object[] { name }) as string ?? "?";
         }
         catch { return "?"; }
-    }
-
-    public static string ColorOf(string name)
-    {
-        if (_getColorHex == null)
-            return null;
-        try
-        {
-            return _getColorHex.Invoke(null, new object[] { name }) as string;
-        }
-        catch { return null; }
-    }
-
-    /// <summary>One of the event's flavour lines, picked at random, or null.</summary>
-    public static string DescriptionOf(string name)
-    {
-        if (_getDescriptions == null)
-            return null;
-        try
-        {
-            if (_getDescriptions.Invoke(null, new object[] { name }) is not IEnumerable raw)
-                return null;
-
-            var lines = new List<string>();
-            foreach (object item in raw)
-            {
-                if (item is string line && !string.IsNullOrWhiteSpace(line))
-                    lines.Add(line);
-            }
-            return lines.Count == 0 ? null : lines[UnityEngine.Random.Range(0, lines.Count)];
-        }
-        catch { return null; }
     }
 
     // ------------------------------------------------------------- gate and run
@@ -459,6 +439,129 @@ internal static class BcmeCompat
         {
             Plugin.DebugLog($"Publishing to BCMER's currentEvents failed: {Unwrap(e)}");
         }
+    }
+
+    private static void BindHazardQueues(Assembly assembly)
+    {
+        try
+        {
+            Type manager = null, net = null, assets = null;
+            foreach (Type type in CompatScanner.SafeGetTypes(assembly))
+            {
+                switch (type.FullName)
+                {
+                    case "BrutalCompanyMinus.Minus.Manager": manager = type; break;
+                    case "BrutalCompanyMinus.Minus.Net": net = type; break;
+                    case "BrutalCompanyMinus.Minus.Assets": assets = type; break;
+                }
+            }
+
+            const BindingFlags anyStatic =
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+            const BindingFlags anyInstance =
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+            if (manager != null)
+            {
+                _hazardQueueField = manager.GetField("insideObjectsToSpawnOutside", anyStatic);
+                Type info = manager.GetNestedType("ObjectInfo",
+                    BindingFlags.Public | BindingFlags.NonPublic);
+                if (info != null)
+                {
+                    _objectInfoObj = info.GetField("obj", anyInstance);
+                    _objectInfoDensity = info.GetField("density", anyInstance);
+                }
+            }
+
+            if (net != null)
+            {
+                _netInstanceField = net.GetField("Instance", anyStatic);
+                _propQueueField = net.GetField("outsideObjectsToSpawn", anyInstance);
+                Type method = net.GetNestedType("OutsideObjectsToSpawnMethod",
+                    BindingFlags.Public | BindingFlags.NonPublic);
+                if (method != null)
+                {
+                    _propDensity = method.GetField("density", anyInstance);
+                    _propEnumId = method.GetField("objectEnumID", anyInstance);
+                }
+            }
+
+            if (assets != null)
+            {
+                _objectNameEnum = assets.GetNestedType("ObjectName",
+                    BindingFlags.Public | BindingFlags.NonPublic);
+                foreach (MethodInfo m in assets.GetMethods(anyStatic))
+                {
+                    ParameterInfo[] ps = m.GetParameters();
+                    if (m.Name == "GetObject" && ps.Length == 1 && ps[0].ParameterType.IsEnum)
+                    {
+                        _assetsGetObject = m;
+                        break;
+                    }
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Plugin.DebugLog($"Binding BCMER's outdoor queues failed: {Unwrap(e)}");
+        }
+    }
+
+    /// <summary>
+    /// Takes everything the round's event queued for outdoor placement and empties
+    /// the queues, so the entries cannot spill onto the next moon. Each item is a
+    /// prefab plus the density BCMER computed for it — objects per square metre,
+    /// against a normal moon's terrain area of roughly 9700.
+    /// </summary>
+    public static List<(UnityEngine.GameObject prefab, float density)> DrainQueuedOutdoorObjects()
+    {
+        var drained = new List<(UnityEngine.GameObject, float)>();
+        if (!Present)
+            return drained;
+
+        try
+        {
+            if (_hazardQueueField?.GetValue(null) is IList hazards)
+            {
+                foreach (object entry in hazards)
+                {
+                    var prefab = _objectInfoObj?.GetValue(entry) as UnityEngine.GameObject;
+                    if (prefab != null && _objectInfoDensity?.GetValue(entry) is float d)
+                        drained.Add((prefab, d));
+                }
+                hazards.Clear();
+            }
+        }
+        catch (Exception e)
+        {
+            Plugin.DebugLog($"Draining BCMER's hazard queue failed: {Unwrap(e)}");
+        }
+
+        try
+        {
+            object netInstance = _netInstanceField?.GetValue(null);
+            if (netInstance != null && _propQueueField?.GetValue(netInstance) is IList props)
+            {
+                foreach (object entry in props)
+                {
+                    if (_propDensity?.GetValue(entry) is not float d
+                        || _propEnumId?.GetValue(entry) is not int id
+                        || _assetsGetObject == null || _objectNameEnum == null)
+                        continue;
+
+                    object name = Enum.ToObject(_objectNameEnum, id);
+                    if (_assetsGetObject.Invoke(null, new[] { name }) is UnityEngine.GameObject prefab)
+                        drained.Add((prefab, d));
+                }
+                props.Clear();
+            }
+        }
+        catch (Exception e)
+        {
+            Plugin.DebugLog($"Draining BCMER's outdoor prop queue failed: {Unwrap(e)}");
+        }
+
+        return drained;
     }
 
     private static string Unwrap(Exception e) => e.InnerException?.Message ?? e.Message;

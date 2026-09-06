@@ -49,6 +49,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     private Coroutine _loop;
     private Coroutine _maintenance;
     private Coroutine _events;
+    private readonly List<GameObject> _ownedHazards = new();
     private bool _shuttingDown;
     private bool _hasVainShrouds;
     private readonly HashSet<string> _warnedRequirements = new(StringComparer.OrdinalIgnoreCase);
@@ -149,6 +150,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             _hasVainShrouds = GrowVainShrouds(weedIterations);
         }
 
+        PlaceQueuedHazards();
         CreateAINodes(cfg.AINodeCount.Value);
         CreateDeadTreesIfNeeded();
         EnableWormFloorEmergeIfNeeded();
@@ -210,6 +212,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             if (tree != null)
                 Destroy(tree);
         _fakeTrees.Clear();
+        DespawnOwnedHazards();
         _ownedEnemies.Clear();
 
         Instance = null;
@@ -976,6 +979,114 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             ai.allAINodes = nodes;
     }
 
+    // ------------------------------------------------------------------- hazards
+
+    /// <summary>
+    /// Places whatever this landing's event queued for outdoors — turrets, landmines,
+    /// dead trees.
+    ///
+    /// BrutalCompanyMinus only fills a queue in Execute(); the placing is done by its
+    /// postfix on RoundManager.FinishGeneratingLevel. The game calls that solely inside
+    /// "if (currentLevel.spawnEnemiesAndScrap)", which is false at the Company, so on
+    /// this moon the queue was filled and never read and the event did nothing at all.
+    /// Its own placer would not have helped either: it demands ground tagged as terrain
+    /// and keeps clear of spawn-denial points, neither of which exists here.
+    ///
+    /// So the objects are placed on the navmesh this mod already trusts for spawning.
+    /// Count comes from BCMER's own density, which is objects per square metre, times
+    /// the area actually walkable here.
+    /// </summary>
+    private void PlaceQueuedHazards()
+    {
+        var queued = BcmeCompat.DrainQueuedOutdoorObjects();
+        if (queued.Count == 0)
+            return;
+
+        var cfg = Plugin.Cfg;
+        float area = _sampler != null ? _sampler.WalkableArea : 0f;
+        if (area <= 0f)
+        {
+            Plugin.Log.LogWarning(
+                $"{queued.Count} queued outdoor object(s) dropped: no walkable area was measured.");
+            return;
+        }
+
+        foreach ((GameObject prefab, float density) in queued)
+        {
+            if (prefab == null)
+                continue;
+
+            int count = Mathf.Clamp(
+                Mathf.RoundToInt(density * area * cfg.HazardDensityMultiplier.Value),
+                0, cfg.HazardMaxPerEvent.Value);
+
+            Plugin.Log.LogInfo(
+                $"Placing '{prefab.name}': density {density:0.####} over {area:F0} m^2 " +
+                $"x{cfg.HazardDensityMultiplier.Value:0.##} = {count}.");
+
+            int placed = 0;
+            for (int i = 0; i < count; i++)
+            {
+                Vector3? point = _sampler.GetRandomPoint(
+                    cfg.MinDistanceFromPlayers.Value, 12, cfg.UpperFloorSpawnShare.Value);
+                if (point == null)
+                    continue;
+                if (SpawnHazard(prefab, point.Value))
+                    placed++;
+            }
+
+            if (placed < count)
+                Plugin.DebugLog($"'{prefab.name}': placed {placed} of {count} (no room for the rest).");
+        }
+    }
+
+    /// <summary>
+    /// Instantiates one hazard and, when it is a networked one, spawns it so clients
+    /// see it too. Mirrors what BrutalCompanyMinus does with the same prefabs.
+    /// </summary>
+    private bool SpawnHazard(GameObject prefab, Vector3 point)
+    {
+        try
+        {
+            var rotation = Quaternion.Euler(0f, UnityEngine.Random.Range(0f, 360f), 0f);
+            GameObject instance = Instantiate(prefab, point, rotation);
+
+            var netObj = instance.GetComponent<NetworkObject>();
+            if (netObj != null)
+                netObj.Spawn(destroyWithScene: true);
+
+            _ownedHazards.Add(instance);
+            return true;
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.LogWarning($"Failed to place '{prefab.name}': {e.Message}");
+            return false;
+        }
+    }
+
+    private void DespawnOwnedHazards()
+    {
+        foreach (GameObject hazard in _ownedHazards)
+        {
+            if (hazard == null)
+                continue;
+            try
+            {
+                var netObj = hazard.GetComponent<NetworkObject>();
+                if (netObj != null && netObj.IsSpawned)
+                    netObj.Despawn(destroy: true);
+                else
+                    Destroy(hazard);
+            }
+            catch (Exception e)
+            {
+                Plugin.DebugLog($"Hazard cleanup failed: {e.Message}");
+            }
+        }
+        _ownedHazards.Clear();
+    }
+
     // -------------------------------------------------------------------- events
 
     /// <summary>
@@ -987,9 +1098,7 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     {
         var cfg = Plugin.Cfg;
 
-        // Let the HUD settle before talking into chat.
         yield return new WaitForSeconds(AnnounceDelay);
-        GordionEvents.AnnouncePending();
 
         if (!cfg.HordeEnabled.Value)
             yield break;

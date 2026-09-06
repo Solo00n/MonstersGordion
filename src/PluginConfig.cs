@@ -110,7 +110,8 @@ internal sealed class PluginConfig
     // [BrutalCompany]
     public readonly ConfigEntry<bool> EnableStockEvents;
     public readonly ConfigEntry<string> StockEventWhitelist;
-    public readonly ConfigEntry<bool> AnnounceEvents;
+    public readonly ConfigEntry<float> HazardDensityMultiplier;
+    public readonly ConfigEntry<int> HazardMaxPerEvent;
 
     // [Horde]
     public readonly ConfigEntry<bool> HordeEnabled;
@@ -367,8 +368,18 @@ internal sealed class PluginConfig
                 "current one (Warzone dropped, it can never fire on this moon; six events added).");
         }
 
-        AnnounceEvents = file.Bind("BrutalCompany", "AnnounceEvents", true,
-            "Announce the chosen event in chat, the way BrutalCompanyMinus announces its own.");
+        HazardDensityMultiplier = file.Bind("BrutalCompany", "HazardDensityMultiplier", 1f,
+            new ConfigDescription(
+                "Scales how many turrets, landmines or trees an event places here. Events that put " +
+                "objects outdoors hand BrutalCompanyMinus a density in objects per square metre, " +
+                "which it multiplies by the moon's terrain area - but it only does that from a hook " +
+                "the game never reaches on this moon, so nothing ever appeared. The mod now places " +
+                "them itself, against the walkable area it measured, and this scales the result.",
+                new AcceptableValueRange<float>(0f, 10f)));
+
+        HazardMaxPerEvent = file.Bind("BrutalCompany", "HazardMaxPerEvent", 40,
+            new ConfigDescription("Hard ceiling on objects placed by one event, whatever the " +
+                "density works out to.", new AcceptableValueRange<int>(0, 200)));
 
         HordeEnabled = file.Bind("Horde", "Enabled", true,
             "A group of enemies closes in from both far edges of the map on every landing at the " +

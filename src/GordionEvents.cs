@@ -31,14 +31,9 @@ internal static class GordionEvents
         "You stayed too long.",
     };
 
-    private static string _pendingAnnouncement;
-    private static bool _announced;
-
     /// <summary>Clears per-landing state. Called when the ship leaves.</summary>
     internal static void Reset()
     {
-        _pendingAnnouncement = null;
-        _announced = false;
     }
 
     /// <summary>
@@ -78,14 +73,10 @@ internal static class GordionEvents
             return;
         }
 
-        // Tell BCMER's own bookkeeping what ran, so its panel and any overlay
-        // reading EventManager.currentEvents show the event instead of nothing.
+        // Tell BCMER's own bookkeeping what ran. That list is what BCMER's own
+        // panel and overlays like LCBridgeOverlay read, so it is also what reports
+        // the event to the player — this mod deliberately says nothing in chat.
         BcmeCompat.PublishCurrentEvent(chosen.mEvent);
-
-        _pendingAnnouncement = Format(
-            chosen.display,
-            BcmeCompat.ColorOf(chosen.name),
-            BcmeCompat.DescriptionOf(chosen.name));
     }
 
     private static void CollectStockCandidates(
@@ -141,21 +132,9 @@ internal static class GordionEvents
     // ------------------------------------------------------------ announcements
 
     /// <summary>
-    /// Announces the stock event picked at level load. Deferred to touchdown so
-    /// the HUD exists and the message is not lost during the loading screen.
-    /// </summary>
-    internal static void AnnouncePending()
-    {
-        if (_announced || _pendingAnnouncement == null)
-            return;
-        _announced = true;
-        Say(_pendingAnnouncement, Plugin.Cfg.AnnounceEvents.Value);
-    }
-
-    /// <summary>
     /// Announces a horde wave as it arrives, not on landing — the whole point of
-    /// the delay is that it is a surprise. Has its own toggle because the horde is
-    /// no longer an event and should not be silenced by the event setting.
+    /// the delay is that it is a surprise. Nothing else reports the horde: it is
+    /// not an MEvent, so BCMER's list and the overlays that read it never see it.
     /// </summary>
     internal static void AnnounceHorde(string enemyName)
     {

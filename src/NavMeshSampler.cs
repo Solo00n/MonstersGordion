@@ -54,6 +54,9 @@ internal sealed class NavMeshSampler
     public bool HasUpperTier => _upper.Triangles.Count > 0;
     public bool HasLowerTier => _lower.Triangles.Count > 0;
 
+    /// <summary>Total walkable surface kept after filtering, in square metres.</summary>
+    public float WalkableArea => _upper.TotalArea + _lower.TotalArea;
+
     public NavMeshSampler(bool requireIndoor)
     {
         _requireIndoor = requireIndoor;

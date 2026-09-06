@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.9.0
+
+- **Outdoor hazard events actually place something now.** `OutsideTurrets`, `OutsideLandmines`
+  and the tree events only ever queued their objects; the placing is done by BrutalCompanyMinus
+  from a postfix on `RoundManager.FinishGeneratingLevel`, and the game calls that solely inside
+  `if (currentLevel.spawnEnemiesAndScrap)` — false at the Company. The queue was filled every
+  landing and never read. Its own placer would not have helped either: it requires ground tagged
+  as terrain and keeps clear of spawn-denial points, and this moon has neither. The mod now
+  drains the queue and places the objects on the navmesh it already trusts, then removes them
+  when the ship leaves.
+- **Two new settings for it.** `HazardDensityMultiplier` scales the result, and
+  `HazardMaxPerEvent` caps it. The count comes from BCMER's own density — objects per square
+  metre — times the walkable area actually measured here, and every number is logged so it can
+  be tuned.
+- **Events no longer announce themselves in chat.** Since 1.6.1 the chosen event is published to
+  BCMER's own event list, which its panel and overlays such as LCBridgeOverlay read, so the chat
+  line was saying the same thing twice. The `AnnounceEvents` setting is gone with it. The horde
+  still announces itself — it is not an event, so nothing else reports it.
+
 ## 1.8.0
 
 - **The stock event list was rebuilt by reading each event's code.** The 1.6.0 list was picked

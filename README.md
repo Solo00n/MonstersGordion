@@ -4,7 +4,7 @@
 
 ![Lethal Company](https://img.shields.io/badge/Lethal%20Company-V81-cc0000?style=flat-square)
 ![BepInEx](https://img.shields.io/badge/BepInEx-5.4.21%2B-cc0000?style=flat-square)
-![Version](https://img.shields.io/badge/version-1.8.0-cc0000?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.9.0-cc0000?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-cc0000?style=flat-square)
 
 **Language / Язык:** [English](#english) · [Русский](#russian)
@@ -104,7 +104,8 @@ File: <code>BepInEx/config/Timofey.MonstersGordion.cfg</code> (created on first 
 <tr><td><code>TreatEnemiesAsOutside</code></td><td><code>true</code></td><td>Required for enemies to be able to target players.</td></tr>
 <tr><td><code>EnableStockEvents</code></td><td><code>false</code></td><td>Let curated stock BrutalCompanyMinus events run on Gordion.</td></tr>
 <tr><td><code>StockEventWhitelist</code></td><td><code>Nothing, Gloomy, ...</code></td><td>Which stock events are allowed here; empty means the built-in list.</td></tr>
-<tr><td><code>AnnounceEvents</code></td><td><code>true</code></td><td>Announce the chosen event in chat.</td></tr>
+<tr><td><code>HazardDensityMultiplier</code></td><td><code>1</code></td><td>Scales how many turrets, landmines or trees an event places here.</td></tr>
+<tr><td><code>HazardMaxPerEvent</code></td><td><code>40</code></td><td>Hard ceiling on objects placed by one event.</td></tr>
 <tr><td><code>Horde.Enabled</code></td><td><code>true</code></td><td>A horde closes in from both far edges of the map on every landing.</td></tr>
 <tr><td><code>Horde.Enemy</code></td><td><code>Masked</code></td><td>Which enemy arrives, by its in-game name.</td></tr>
 <tr><td><code>Horde.CountPerSide</code></td><td><code>5</code></td><td>How many arrive at each of the two edges.</td></tr>
@@ -233,7 +234,8 @@ Output: <code>bin/Release/netstandard2.1/MonstersGordion.dll</code>. Game assemb
 <tr><td><code>TreatEnemiesAsOutside</code></td><td><code>true</code></td><td>Обязательно, чтобы враги могли выбирать игроков целью.</td></tr>
 <tr><td><code>EnableStockEvents</code></td><td><code>false</code></td><td>Разрешить отобранным штатным ивентам BrutalCompanyMinus идти на Гордионе.</td></tr>
 <tr><td><code>StockEventWhitelist</code></td><td><code>Nothing, Gloomy, ...</code></td><td>Какие штатные ивенты здесь допущены; пусто — встроенный список.</td></tr>
-<tr><td><code>AnnounceEvents</code></td><td><code>true</code></td><td>Объявлять выбранный ивент в чате.</td></tr>
+<tr><td><code>HazardDensityMultiplier</code></td><td><code>1</code></td><td>Множитель числа турелей, мин и деревьев, которые ставит ивент.</td></tr>
+<tr><td><code>HazardMaxPerEvent</code></td><td><code>40</code></td><td>Жёсткий потолок на количество объектов от одного ивента.</td></tr>
 <tr><td><code>Horde.Enabled</code></td><td><code>true</code></td><td>Орда заходит с двух дальних краёв карты на каждой высадке.</td></tr>
 <tr><td><code>Horde.Enemy</code></td><td><code>Masked</code></td><td>Кто именно приходит — внутриигровое имя врага.</td></tr>
 <tr><td><code>Horde.CountPerSide</code></td><td><code>5</code></td><td>Сколько появится у каждого из двух краёв.</td></tr>
