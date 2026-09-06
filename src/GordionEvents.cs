@@ -16,39 +16,27 @@ namespace MonstersGordion;
 /// checks: the enabled flag, the type weight, the Special/Beta gates, the moon
 /// lists, and the event's own AddEventIfOnly() veto.
 ///
-/// Custom events are ours, written against what this moon actually provides.
-/// They are deliberately NOT registered into BCMER's own list: they could never
-/// be chosen there (same levelID gate), and BCMER matches config entries to
-/// events by list index, so inserting into it risks shuffling a user's settings.
+/// The Horde is not part of this roll. It is a standing feature of the moon
+/// under its own [Horde] section, driven by the spawner, so a landing can have
+/// both it and an event.
 /// </summary>
 internal static class GordionEvents
 {
-    /// <summary>Identifier of the one custom event, kept out of BCMER's namespace.</summary>
-    internal const string MaskedHorde = "MaskedHordeGordion";
+    private const string HordeColor = "#cc0000";
 
-    private const string MaskedHordeTitle = "Masked Horde";
-    private const string MaskedHordeColor = "#cc0000";
-
-    private static readonly string[] MaskedHordeLines =
+    private static readonly string[] HordeLines =
     {
         "Something has been wearing their faces for a while now.",
         "They came in from both ends of the dock. All of them.",
         "You stayed too long.",
     };
 
-    /// <summary>The custom event armed for this landing, or null.</summary>
-    internal static string ArmedCustomEvent { get; private set; }
-
     private static string _pendingAnnouncement;
     private static bool _announced;
-
-    /// <summary>Whether the timed Masked Horde was rolled for this landing.</summary>
-    internal static bool HordeArmed => ArmedCustomEvent == MaskedHorde;
 
     /// <summary>Clears per-landing state. Called when the ship leaves.</summary>
     internal static void Reset()
     {
-        ArmedCustomEvent = null;
         _pendingAnnouncement = null;
         _announced = false;
     }
@@ -62,21 +50,13 @@ internal static class GordionEvents
     {
         Reset();
 
-        var cfg = Plugin.Cfg;
-        bool wantStock = cfg.EnableStockEvents.Value;
-        bool wantCustom = cfg.EnableCustomEvents.Value;
-        if (!wantStock && !wantCustom)
+        if (!Plugin.Cfg.EnableStockEvents.Value)
             return;
 
         BcmeCompat.Scan();
 
         var candidates = new List<(string name, string display, int weight, object mEvent)>();
-
-        if (wantStock)
-            CollectStockCandidates(candidates);
-
-        if (wantCustom)
-            CollectCustomCandidates(candidates, AverageWeight(candidates));
+        CollectStockCandidates(candidates);
 
         if (candidates.Count == 0)
         {
@@ -91,33 +71,21 @@ internal static class GordionEvents
             $"Company moon event chosen: '{chosen.display}' " +
             $"(from {candidates.Count} eligible candidate(s)).");
 
-        if (chosen.mEvent != null)
+        // Hand it straight back to BCMER to run.
+        if (!BcmeCompat.Execute(chosen.mEvent, chosen.name))
         {
-            // Stock BCMER event: hand it straight back to BCMER to run.
-            if (!BcmeCompat.Execute(chosen.mEvent, chosen.name))
-            {
-                BcmeCompat.PublishCurrentEvent(null);
-                return;
-            }
-
-            // Tell BCMER's own bookkeeping what ran, so its panel and any overlay
-            // reading EventManager.currentEvents show the event instead of nothing.
-            BcmeCompat.PublishCurrentEvent(chosen.mEvent);
-
-            _pendingAnnouncement = Format(
-                chosen.display,
-                BcmeCompat.ColorOf(chosen.name),
-                BcmeCompat.DescriptionOf(chosen.name));
-        }
-        else
-        {
-            // Custom event: armed now, run by the spawner once we are on the ground.
-            // Nothing of BCMER's ran, so its list stays empty rather than showing a
-            // leftover from the previous moon.
             BcmeCompat.PublishCurrentEvent(null);
-            ArmedCustomEvent = chosen.name;
-            Plugin.DebugLog($"Custom event '{chosen.name}' armed for this landing.");
+            return;
         }
+
+        // Tell BCMER's own bookkeeping what ran, so its panel and any overlay
+        // reading EventManager.currentEvents show the event instead of nothing.
+        BcmeCompat.PublishCurrentEvent(chosen.mEvent);
+
+        _pendingAnnouncement = Format(
+            chosen.display,
+            BcmeCompat.ColorOf(chosen.name),
+            BcmeCompat.DescriptionOf(chosen.name));
     }
 
     private static void CollectStockCandidates(
@@ -151,44 +119,6 @@ internal static class GordionEvents
         }
     }
 
-    private static void CollectCustomCandidates(
-        List<(string name, string display, int weight, object mEvent)> candidates, int weight)
-    {
-        if (!Plugin.Cfg.MaskedHorde.Value)
-            return;
-
-        // Spawning Masked is the point of the event, so an enemy list that bars
-        // them bars the event too — silently ignoring the user's list would be
-        // worse than not running.
-        EnemyCatalog.RefreshExclusions();
-        if (EnemyCatalog.IsExcluded("Masked"))
-        {
-            Plugin.Log.LogInfo(
-                "  custom event 'Masked Horde' skipped: 'Masked' is excluded by ExcludedEnemies.");
-            return;
-        }
-
-        candidates.Add((MaskedHorde, MaskedHordeTitle, weight, null));
-        Plugin.DebugLog($"  custom event '{MaskedHordeTitle}' eligible (w{weight}).");
-    }
-
-    /// <summary>
-    /// The weight a custom event gets: the average of the eligible stock weights,
-    /// so it is about as likely as any single stock event rather than swamping or
-    /// vanishing against BCMER's four-digit numbers. With no stock events in the
-    /// pool the value is arbitrary, since the roll is then uniform anyway.
-    /// </summary>
-    private static int AverageWeight(
-        List<(string name, string display, int weight, object mEvent)> candidates)
-    {
-        if (candidates.Count == 0)
-            return 1;
-        long total = 0;
-        foreach (var c in candidates)
-            total += c.weight;
-        return (int)Mathf.Max(1, total / candidates.Count);
-    }
-
     private static (string name, string display, int weight, object mEvent) PickWeighted(
         List<(string name, string display, int weight, object mEvent)> candidates)
     {
@@ -219,14 +149,19 @@ internal static class GordionEvents
         if (_announced || _pendingAnnouncement == null)
             return;
         _announced = true;
-        Say(_pendingAnnouncement);
+        Say(_pendingAnnouncement, Plugin.Cfg.AnnounceEvents.Value);
     }
 
-    /// <summary>Announces the Masked Horde as it actually arrives, not on landing.</summary>
-    internal static void AnnounceMaskedHorde()
+    /// <summary>
+    /// Announces a horde wave as it arrives, not on landing — the whole point of
+    /// the delay is that it is a surprise. Has its own toggle because the horde is
+    /// no longer an event and should not be silenced by the event setting.
+    /// </summary>
+    internal static void AnnounceHorde(string enemyName)
     {
-        Say(Format(MaskedHordeTitle, MaskedHordeColor,
-            MaskedHordeLines[UnityEngine.Random.Range(0, MaskedHordeLines.Length)]));
+        string title = string.IsNullOrWhiteSpace(enemyName) ? "Horde" : $"{enemyName} Horde";
+        Say(Format(title, HordeColor, HordeLines[UnityEngine.Random.Range(0, HordeLines.Length)]),
+            Plugin.Cfg.HordeAnnounce.Value);
     }
 
     private static string Format(string title, string colorHex, string description)
@@ -237,9 +172,9 @@ internal static class GordionEvents
         return string.IsNullOrWhiteSpace(description) ? line : $"{line}: {description}";
     }
 
-    private static void Say(string message)
+    private static void Say(string message, bool allowed)
     {
-        if (!Plugin.Cfg.AnnounceEvents.Value)
+        if (!allowed)
             return;
         try
         {

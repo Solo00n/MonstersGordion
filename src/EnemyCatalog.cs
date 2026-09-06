@@ -80,14 +80,9 @@ internal static class EnemyCatalog
         }
     }
 
-    /// <summary>
-    /// Re-reads the configured enemy list. Split out of Resolve so callers that
-    /// run before a landing — the event roll happens at level load, well before
-    /// Resolve — can ask IsExcluded a question and get an answer based on the
-    /// current config rather than the previous landing's.
-    /// </summary>
-    internal static void RefreshExclusions()
+    internal static void Resolve()
     {
+        Enemies.Clear();
         ListedNames.Clear();
         _whitelistMode = Plugin.Cfg.ExcludedEnemiesIsWhitelist.Value;
 
@@ -98,12 +93,6 @@ internal static class EnemyCatalog
         {
             ListedNames.Add(name);
         }
-    }
-
-    internal static void Resolve()
-    {
-        Enemies.Clear();
-        RefreshExclusions();
 
         Plugin.Log.LogInfo(_whitelistMode
             ? $"Enemy list is a WHITELIST of {ListedNames.Count} name(s): only these may spawn."

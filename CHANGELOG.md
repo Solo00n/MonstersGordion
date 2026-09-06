@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.7.0
+
+- **The horde is now a standing feature of the moon, not a random event.** It used to compete
+  in the `[BrutalCompany]` roll, so most landings never saw it and one that did saw no BCMER
+  event. It now runs on every landing, independently, under its own `[Horde]` section — a
+  landing can have both a horde and an event.
+- **The horde is configurable.** `Enemy` picks who arrives by in-game name rather than always
+  Masked, `CountPerSide` sets the size of each flank, `DelaySeconds` the wait after landing,
+  `RepeatSeconds` turns a single wave into repeating ones, and `Announce` is its own toggle so
+  the event setting no longer silences it.
+- `EnableCustomEvents` is gone. The horde was the only thing it controlled, and the horde is no
+  longer an event; `[Horde] Enabled` replaces it.
+
 ## 1.6.1
 
 - **Events now show up in overlays and in BrutalCompanyMinus's own panel.** The event ran, but

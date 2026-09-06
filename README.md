@@ -4,7 +4,7 @@
 
 ![Lethal Company](https://img.shields.io/badge/Lethal%20Company-V81-cc0000?style=flat-square)
 ![BepInEx](https://img.shields.io/badge/BepInEx-5.4.21%2B-cc0000?style=flat-square)
-![Version](https://img.shields.io/badge/version-1.6.1-cc0000?style=flat-square)
+![Version](https://img.shields.io/badge/version-1.7.0-cc0000?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-cc0000?style=flat-square)
 
 **Language / Язык:** [English](#english) · [Русский](#russian)
@@ -104,11 +104,13 @@ File: <code>BepInEx/config/Timofey.MonstersGordion.cfg</code> (created on first 
 <tr><td><code>TreatEnemiesAsOutside</code></td><td><code>true</code></td><td>Required for enemies to be able to target players.</td></tr>
 <tr><td><code>EnableStockEvents</code></td><td><code>false</code></td><td>Let curated stock BrutalCompanyMinus events run on Gordion.</td></tr>
 <tr><td><code>StockEventWhitelist</code></td><td><code>Nothing, Gloomy, ...</code></td><td>Which stock events are allowed here; empty means the built-in list.</td></tr>
-<tr><td><code>EnableCustomEvents</code></td><td><code>false</code></td><td>Enable the events this mod writes itself for Gordion.</td></tr>
-<tr><td><code>MaskedHorde</code></td><td><code>true</code></td><td>Masked close in from both far edges of the map at once.</td></tr>
-<tr><td><code>HordeDelaySeconds</code></td><td><code>240</code></td><td>Seconds after landing before the horde arrives.</td></tr>
-<tr><td><code>HordeCountPerSide</code></td><td><code>5</code></td><td>Masked spawned at each of the two edges.</td></tr>
 <tr><td><code>AnnounceEvents</code></td><td><code>true</code></td><td>Announce the chosen event in chat.</td></tr>
+<tr><td><code>Horde.Enabled</code></td><td><code>true</code></td><td>A horde closes in from both far edges of the map on every landing.</td></tr>
+<tr><td><code>Horde.Enemy</code></td><td><code>Masked</code></td><td>Which enemy arrives, by its in-game name.</td></tr>
+<tr><td><code>Horde.CountPerSide</code></td><td><code>5</code></td><td>How many arrive at each of the two edges.</td></tr>
+<tr><td><code>Horde.DelaySeconds</code></td><td><code>240</code></td><td>Seconds after landing before they arrive.</td></tr>
+<tr><td><code>Horde.RepeatSeconds</code></td><td><code>0</code></td><td>0 is one wave per landing; otherwise the gap between waves.</td></tr>
+<tr><td><code>Horde.Announce</code></td><td><code>true</code></td><td>Announce each wave in chat as it arrives.</td></tr>
 </table>
 
 <blockquote style="border-left: 4px solid #cc0000; padding-left: 15px;">
@@ -231,11 +233,13 @@ Output: <code>bin/Release/netstandard2.1/MonstersGordion.dll</code>. Game assemb
 <tr><td><code>TreatEnemiesAsOutside</code></td><td><code>true</code></td><td>Обязательно, чтобы враги могли выбирать игроков целью.</td></tr>
 <tr><td><code>EnableStockEvents</code></td><td><code>false</code></td><td>Разрешить отобранным штатным ивентам BrutalCompanyMinus идти на Гордионе.</td></tr>
 <tr><td><code>StockEventWhitelist</code></td><td><code>Nothing, Gloomy, ...</code></td><td>Какие штатные ивенты здесь допущены; пусто — встроенный список.</td></tr>
-<tr><td><code>EnableCustomEvents</code></td><td><code>false</code></td><td>Включить ивенты, написанные этим модом специально под Гордион.</td></tr>
-<tr><td><code>MaskedHorde</code></td><td><code>true</code></td><td>Мимики заходят разом с двух дальних краёв карты.</td></tr>
-<tr><td><code>HordeDelaySeconds</code></td><td><code>240</code></td><td>Через сколько секунд после посадки приходит орда.</td></tr>
-<tr><td><code>HordeCountPerSide</code></td><td><code>5</code></td><td>Сколько мимиков появится у каждого из двух краёв.</td></tr>
 <tr><td><code>AnnounceEvents</code></td><td><code>true</code></td><td>Объявлять выбранный ивент в чате.</td></tr>
+<tr><td><code>Horde.Enabled</code></td><td><code>true</code></td><td>Орда заходит с двух дальних краёв карты на каждой высадке.</td></tr>
+<tr><td><code>Horde.Enemy</code></td><td><code>Masked</code></td><td>Кто именно приходит — внутриигровое имя врага.</td></tr>
+<tr><td><code>Horde.CountPerSide</code></td><td><code>5</code></td><td>Сколько появится у каждого из двух краёв.</td></tr>
+<tr><td><code>Horde.DelaySeconds</code></td><td><code>240</code></td><td>Через сколько секунд после посадки они приходят.</td></tr>
+<tr><td><code>Horde.RepeatSeconds</code></td><td><code>0</code></td><td>0 — одна волна за высадку, иначе промежуток между волнами.</td></tr>
+<tr><td><code>Horde.Announce</code></td><td><code>true</code></td><td>Объявлять каждую волну в чате.</td></tr>
 </table>
 
 <blockquote style="border-left: 4px solid #cc0000; padding-left: 15px;">

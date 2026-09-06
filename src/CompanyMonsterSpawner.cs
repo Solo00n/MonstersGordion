@@ -985,41 +985,57 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
     /// </summary>
     private IEnumerator EventLoop()
     {
+        var cfg = Plugin.Cfg;
+
         // Let the HUD settle before talking into chat.
         yield return new WaitForSeconds(AnnounceDelay);
         GordionEvents.AnnouncePending();
 
-        if (!GordionEvents.HordeArmed)
+        if (!cfg.HordeEnabled.Value)
             yield break;
 
-        float delay = Mathf.Max(1f, Plugin.Cfg.HordeDelaySeconds.Value - AnnounceDelay);
-        Plugin.DebugLog($"Masked Horde armed, arriving in {delay:F0}s.");
+        float delay = Mathf.Max(1f, cfg.HordeDelaySeconds.Value - AnnounceDelay);
+        Plugin.DebugLog($"Horde due in {delay:F0}s.");
         yield return new WaitForSeconds(delay);
 
-        yield return RunMaskedHorde();
+        // The horde is a standing feature of this moon rather than a rolled event,
+        // so it runs on every landing, independently of whatever [BrutalCompany]
+        // picked. RepeatSeconds = 0 keeps it to the single wave.
+        while (true)
+        {
+            yield return RunHorde();
+
+            int repeat = cfg.HordeRepeatSeconds.Value;
+            if (repeat <= 0)
+                yield break;
+            yield return new WaitForSeconds(repeat);
+        }
     }
 
     /// <summary>
-    /// The Masked Horde: a group closes in from each of the two far edges of the
+    /// One horde wave: a group closes in from each of the two far edges of the
     /// walkable area at once.
     ///
     /// It spawns through SpawnEnemy, which deliberately does not consult
     /// GlobalCap — that check lives in TrySpawnCycle and governs the ordinary
     /// trickle. A horde a cap could shave down to two would not be a horde.
     /// </summary>
-    private IEnumerator RunMaskedHorde()
+    private IEnumerator RunHorde()
     {
-        EnemyType masked = EnemyCatalog.Enemies.FirstOrDefault(
-            e => string.Equals(e.enemyName, "Masked", StringComparison.OrdinalIgnoreCase));
-        if (masked == null)
+        string wanted = Plugin.Cfg.HordeEnemy.Value;
+        EnemyType enemy = EnemyCatalog.Enemies.FirstOrDefault(
+            e => string.Equals(e.enemyName, wanted, StringComparison.OrdinalIgnoreCase));
+        if (enemy == null)
         {
-            Plugin.Log.LogWarning("Masked Horde: no 'Masked' enemy type in the pool — skipping.");
+            Plugin.Log.LogWarning(
+                $"Horde: '{wanted}' is not in the spawn pool — check the [Horde] Enemy name and " +
+                "that it is not barred by ExcludedEnemies. Skipping.");
             yield break;
         }
 
         if (_sampler == null)
         {
-            Plugin.Log.LogWarning("Masked Horde: no navmesh sample available — skipping.");
+            Plugin.Log.LogWarning("Horde: no navmesh sample available — skipping.");
             yield break;
         }
 
@@ -1033,14 +1049,14 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
             && !_sampler.TryGetOppositeEdgePoints(perSide, 0f, out sideA, out sideB))
         {
             Plugin.Log.LogWarning(
-                "Masked Horde: could not find usable points at both edges of the map — skipping. " +
+                "Horde: could not find usable points at both edges of the map — skipping. " +
                 "On a heavily reshaped Company moon the walkable area can be too fragmented for this.");
             yield break;
         }
 
-        GordionEvents.AnnounceMaskedHorde();
+        GordionEvents.AnnounceHorde(enemy.enemyName);
         Plugin.Log.LogInfo(
-            $"Masked Horde: spawning {sideA.Count} + {sideB.Count} Masked at opposite map edges.");
+            $"Horde: spawning {sideA.Count} + {sideB.Count} '{enemy.enemyName}' at opposite map edges.");
 
         // Alternating, one per frame, so both flanks arrive together and a
         // ten-strong burst never lands in a single frame.
@@ -1048,10 +1064,10 @@ internal sealed class CompanyMonsterSpawner : MonoBehaviour
         for (int i = 0; i < most; i++)
         {
             if (i < sideA.Count)
-                SpawnEnemy(masked, sideA[i]);
+                SpawnEnemy(enemy, sideA[i]);
             yield return null;
             if (i < sideB.Count)
-                SpawnEnemy(masked, sideB[i]);
+                SpawnEnemy(enemy, sideB[i]);
             yield return null;
         }
     }

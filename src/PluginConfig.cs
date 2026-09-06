@@ -110,11 +110,15 @@ internal sealed class PluginConfig
     // [BrutalCompany]
     public readonly ConfigEntry<bool> EnableStockEvents;
     public readonly ConfigEntry<string> StockEventWhitelist;
-    public readonly ConfigEntry<bool> EnableCustomEvents;
-    public readonly ConfigEntry<bool> MaskedHorde;
-    public readonly ConfigEntry<int> HordeDelaySeconds;
-    public readonly ConfigEntry<int> HordeCountPerSide;
     public readonly ConfigEntry<bool> AnnounceEvents;
+
+    // [Horde]
+    public readonly ConfigEntry<bool> HordeEnabled;
+    public readonly ConfigEntry<string> HordeEnemy;
+    public readonly ConfigEntry<int> HordeCountPerSide;
+    public readonly ConfigEntry<int> HordeDelaySeconds;
+    public readonly ConfigEntry<int> HordeRepeatSeconds;
+    public readonly ConfigEntry<bool> HordeAnnounce;
 
     // [Advanced]
     public readonly ConfigEntry<bool> DespawnOnShipLeave;
@@ -337,26 +341,39 @@ internal sealed class PluginConfig
             "can add at your own risk: Trees, LeaflessTrees, LeaflessBrownTrees (they place props " +
             "outdoors and pair well with Feiopar's tree hunting).");
 
-        EnableCustomEvents = file.Bind("BrutalCompany", "EnableCustomEvents", false,
-            "Enable the events this mod makes itself for the Company moon. These are written against " +
-            "the moon's actual conditions, so unlike most stock events they are known to work here.");
-
-        MaskedHorde = file.Bind("BrutalCompany", "MaskedHorde", true,
-            "Custom event 'Masked Horde': after a long stay on the moon, a group of Masked closes in " +
-            "from both far edges of the map at once. Requires EnableCustomEvents.");
-
-        HordeDelaySeconds = file.Bind("BrutalCompany", "HordeDelaySeconds", 240,
-            new ConfigDescription("Seconds after landing before the Masked Horde arrives. Real time, " +
-                "so it behaves the same whether or not a mod runs the clock on this moon.",
-                new AcceptableValueRange<int>(30, 1800)));
-
-        HordeCountPerSide = file.Bind("BrutalCompany", "HordeCountPerSide", 5,
-            new ConfigDescription("Masked spawned at each of the two edges. The horde deliberately " +
-                "ignores GlobalCap - that is what makes it a horde.",
-                new AcceptableValueRange<int>(1, 20)));
-
         AnnounceEvents = file.Bind("BrutalCompany", "AnnounceEvents", true,
             "Announce the chosen event in chat, the way BrutalCompanyMinus announces its own.");
+
+        HordeEnabled = file.Bind("Horde", "Enabled", true,
+            "A group of enemies closes in from both far edges of the map on every landing at the " +
+            "Company. This is a standing feature of the moon, not a random event: it does not take " +
+            "part in the [BrutalCompany] roll and does not compete with the events there, so a " +
+            "landing can have both. The edges are worked out from the navmesh as the mod runs, so " +
+            "moon overhaul mods that reshape the outdoor area do not strand the arrivals.");
+
+        HordeEnemy = file.Bind("Horde", "Enemy", "Masked",
+            "Which enemy arrives, by its in-game name (Masked, Flowerman, Crawler, Spring, " +
+            "Baboon hawk...). It must also be spawnable — an enemy your ExcludedEnemies list bars " +
+            "will not arrive, and the reason is logged.");
+
+        HordeCountPerSide = file.Bind("Horde", "CountPerSide", 5,
+            new ConfigDescription("How many arrive at each of the two edges, so the total is twice " +
+                "this. The horde deliberately ignores GlobalCap — one a cap could shave down to " +
+                "two would not be a horde.",
+                new AcceptableValueRange<int>(1, 20)));
+
+        HordeDelaySeconds = file.Bind("Horde", "DelaySeconds", 240,
+            new ConfigDescription("Seconds after landing before they arrive. Real time, so it " +
+                "behaves the same whether or not a mod runs the clock on this moon.",
+                new AcceptableValueRange<int>(10, 1800)));
+
+        HordeRepeatSeconds = file.Bind("Horde", "RepeatSeconds", 0,
+            new ConfigDescription("0 arrives once per landing. Any other value is the gap between " +
+                "waves, which then keep coming for as long as you stay.",
+                new AcceptableValueRange<int>(0, 1800)));
+
+        HordeAnnounce = file.Bind("Horde", "Announce", true,
+            "Announce each wave in chat as it arrives.");
 
         DespawnOnShipLeave = file.Bind("Advanced", "DespawnOnShipLeave", true,
             "Despawn enemies created by this mod when the ship leaves the Company moon.");
