@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.6.1
+
+- **Events now show up in overlays and in BrutalCompanyMinus's own panel.** The event ran, but
+  every display insisted nothing had happened: anything reporting the round's events reads
+  `EventManager.currentEvents`, and running an event through `MEvent.Execute()` does not put it
+  there — BCMER fills that list in `ChooseEvents`, which never executes on this moon. The mod
+  now publishes the chosen event to that list itself, and clears it when nothing was chosen so a
+  leftover from the previous moon cannot be shown here.
+- The `Executed` flag is deliberately left untouched. BCMER sets it in `ApplyEvents` and never
+  resets it anywhere, and `ApplyEvents` skips any event already carrying it — marking one here
+  would have silently barred that event from every other moon for the rest of the session.
+
 ## 1.6.0
 
 - **BrutalCompanyMinus events now happen on Gordion.** BCMER never ran a single event on the

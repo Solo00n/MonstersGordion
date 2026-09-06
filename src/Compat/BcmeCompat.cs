@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
@@ -53,6 +53,10 @@ internal static class BcmeCompat
     private static MethodInfo _mEventExecute;
     private static MethodInfo _mEventAddIfOnly;
     private static FieldInfo _mEventMoonMode;
+
+    // EventManager.currentEvents — the list BCMER's own UI and third-party
+    // overlays read to show what is happening this round.
+    private static FieldInfo _currentEventsField;
 
     /// <summary>Any BrutalCompanyMinus flavour is loaded.</summary>
     public static bool Present { get; private set; }
@@ -153,12 +157,21 @@ internal static class BcmeCompat
         _mEventAddIfOnly = mEvent.GetMethod("AddEventIfOnly", Type.EmptyTypes);
         _mEventMoonMode  = mEvent.GetField("MoonMode", BindingFlags.Public | BindingFlags.Instance);
 
+        foreach (Type type in CompatScanner.SafeGetTypes(assembly))
+        {
+            if (type.FullName != "BrutalCompanyMinus.Minus.EventManager")
+                continue;
+            _currentEventsField = type.GetField("currentEvents",
+                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            break;
+        }
+
         Plugin.Log.LogInfo(
             $"BCMER event API bound (assembly via {how}). " +
             $"exists={_doesEventExist != null}, get={_getEvent != null}, " +
             $"enabled={_isEnabled != null}, weight={_getWeight != null}, " +
             $"moonLists={_onBlacklist != null && _onWhitelist != null}, " +
-            $"execute={_mEventExecute != null}, veto={_mEventAddIfOnly != null}.");
+            $"execute={_mEventExecute != null}, veto={_mEventAddIfOnly != null}, currentEvents={_currentEventsField != null}.");
 
         if (!EventsUsable)
             Plugin.Log.LogWarning(
@@ -411,6 +424,40 @@ internal static class BcmeCompat
         {
             Plugin.Log.LogWarning($"BCMER event '{name}' threw while executing: {Unwrap(e)}");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Puts the event we just ran into EventManager.currentEvents, which is where
+    /// BCMER's own panel and third-party overlays look to see what is happening
+    /// this round. Without this an event runs on the Company moon but every
+    /// display insists nothing did.
+    ///
+    /// Pass null to leave the list empty. BCMER clears it itself in its
+    /// StartOfRound.ShipLeave prefix, which is not gated by the moon, so nothing
+    /// we write here can outlive the landing.
+    ///
+    /// Deliberately does NOT set MEvent.Executed. BCMER assigns that flag in
+    /// ApplyEvents and never resets it anywhere in the assembly, and ApplyEvents
+    /// skips any event already carrying it — so marking one here would silently
+    /// bar that event from every other moon for the rest of the session.
+    /// </summary>
+    public static void PublishCurrentEvent(object mEvent)
+    {
+        if (_currentEventsField == null)
+            return;
+        try
+        {
+            if (_currentEventsField.GetValue(null) is not IList list)
+                return;
+
+            list.Clear();
+            if (mEvent != null)
+                list.Add(mEvent);
+        }
+        catch (Exception e)
+        {
+            Plugin.DebugLog($"Publishing to BCMER's currentEvents failed: {Unwrap(e)}");
         }
     }
 

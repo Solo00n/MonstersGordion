@@ -80,6 +80,7 @@ internal static class GordionEvents
 
         if (candidates.Count == 0)
         {
+            BcmeCompat.PublishCurrentEvent(null);
             Plugin.Log.LogInfo(
                 "No event is eligible on the Company moon this landing — see the reasons above.");
             return;
@@ -94,7 +95,15 @@ internal static class GordionEvents
         {
             // Stock BCMER event: hand it straight back to BCMER to run.
             if (!BcmeCompat.Execute(chosen.mEvent, chosen.name))
+            {
+                BcmeCompat.PublishCurrentEvent(null);
                 return;
+            }
+
+            // Tell BCMER's own bookkeeping what ran, so its panel and any overlay
+            // reading EventManager.currentEvents show the event instead of nothing.
+            BcmeCompat.PublishCurrentEvent(chosen.mEvent);
+
             _pendingAnnouncement = Format(
                 chosen.display,
                 BcmeCompat.ColorOf(chosen.name),
@@ -103,6 +112,9 @@ internal static class GordionEvents
         else
         {
             // Custom event: armed now, run by the spawner once we are on the ground.
+            // Nothing of BCMER's ran, so its list stays empty rather than showing a
+            // leftover from the previous moon.
+            BcmeCompat.PublishCurrentEvent(null);
             ArmedCustomEvent = chosen.name;
             Plugin.DebugLog($"Custom event '{chosen.name}' armed for this landing.");
         }
