@@ -147,6 +147,14 @@ internal sealed class PluginConfig
     // edits the level's enemy lists, since BCMER skips its own snapshot pass here
     // and would have nothing to restore them from. Monsters are this mod's job.
     private const string DefaultStockEvents =
+        "Nothing, Gloomy, Meteors, OutsideLandmines, OutsideTurrets, AllWeather, " +
+        "DoorFailure, ShipLightsFailure, ManualCameraFailure, IsMetal, " +
+        "LeaflessTrees, LeaflessBrownTrees";
+
+    // The 1.6.0 list, kept only to recognise a whitelist the user never edited.
+    // Warzone was in it and can never fire here: its own gate wants a turret or a
+    // landmine in the level's spawnableMapObjects, and this moon's array is empty.
+    private const string LegacyStockEvents =
         "Nothing, Gloomy, Meteors, OutsideLandmines, OutsideTurrets, Warzone, AllWeather";
 
     private const int MaxSpawnDefault = 40;
@@ -337,9 +345,27 @@ internal sealed class PluginConfig
 
         StockEventWhitelist = file.Bind("BrutalCompany", "StockEventWhitelist", DefaultStockEvents,
             "Comma-separated BCMER event names allowed on the Company moon, checked against your " +
-            "BCMER config before each landing. Empty means the built-in list. Extra candidates you " +
-            "can add at your own risk: Trees, LeaflessTrees, LeaflessBrownTrees (they place props " +
-            "outdoors and pair well with Feiopar's tree hunting).");
+            "BCMER config before each landing. Empty means the built-in list. Extras you can add " +
+            "at your own risk: DoorCircuitFailure (shuts the ship door 3PM-10PM, so it needs a mod " +
+            "running the clock here and can strand you), ShipmentFees, LateShip and VeryLateShip " +
+            "(they move the departure time, which can fight a mod that leaves at midnight), and " +
+            "BigBonus. Scrap and item events (Clock, ToiletPaper, TransmuteScrapBig and the rest) " +
+            "are pointless here: this moon generates no loot for them to act on, and they share " +
+            "BCMER's one-transmutation-per-round flag, which this moon never clears. Names not " +
+            "listed here are usually blocked by a gate of their own - the log always says which.");
+
+        // The stock list gained six events in 1.8.0 and lost Warzone, but BepInEx
+        // never overwrites a value that already exists, so an upgrade would have
+        // silently kept the old seven. Only a whitelist still identical to the old
+        // default is replaced, so an edited one is never touched.
+        if (StockEventWhitelist.Value != null
+            && StockEventWhitelist.Value.Trim() == LegacyStockEvents)
+        {
+            StockEventWhitelist.Value = DefaultStockEvents;
+            Plugin.Log.LogInfo(
+                "Config migration: StockEventWhitelist was still the 1.6.0 list, replaced with the " +
+                "current one (Warzone dropped, it can never fire on this moon; six events added).");
+        }
 
         AnnounceEvents = file.Bind("BrutalCompany", "AnnounceEvents", true,
             "Announce the chosen event in chat, the way BrutalCompanyMinus announces its own.");

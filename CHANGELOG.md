@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.8.0
+
+- **The stock event list was rebuilt by reading each event's code.** The 1.6.0 list was picked
+  from event descriptions and general reasoning; this one comes from the decompiled
+  `AddEventIfOnly()` and `Execute()` of every candidate. BCMER's eligibility checks are
+  frequently unrelated to what the event does, so a description is not enough to tell whether
+  something can work here.
+- **`Warzone` removed — it can never fire on this moon.** Its own check wants a turret or a
+  landmine already present in the level's hazard table, and Gordion's is empty. It had been
+  declining itself on every landing since 1.6.0.
+- **Six events added:** `DoorFailure` and `ShipLightsFailure` (ship-side, no preconditions, and
+  the lights come back on departure), `ManualCameraFailure` (kills the map screen), `IsMetal`
+  (makes everything conductive, which pairs with the storms a weather mod can bring here), and
+  `LeaflessTrees` / `LeaflessBrownTrees` (dead trees outdoors, which suits Feiopar's tree
+  hunting).
+- **Existing whitelists are migrated.** BepInEx never overwrites a value that already exists, so
+  an upgrade would have silently kept the old seven names. A whitelist still identical to the
+  1.6.0 default is replaced with the new one; an edited one is left alone.
+- The README no longer suggests `Trees` as an optional addition — it is blocked by the same
+  empty hazard table as `Warzone`.
+
 ## 1.7.0
 
 - **The horde is now a standing feature of the moon, not a random event.** It used to compete
